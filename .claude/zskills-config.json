@@ -1,0 +1,29 @@
+{
+  "$schema": "./zskills-config.schema.json",
+  "project_name": "touchgrass",
+  "timezone": "America/New_York",
+  "execution": {
+    "landing": "pr",
+    "main_protected": true,
+    "branch_prefix": "feat/"
+  },
+  "testing": {
+    "unit_cmd": "",
+    "full_cmd": "",
+    "output_file": ".test-results.txt",
+    "file_patterns": [""]
+  },
+  "dev_server": {
+    "cmd": "",
+    "port_script": "scripts/port.sh",
+    "main_repo_path": "/workspaces/touchgrass"
+  },
+  "ui": {
+    "file_patterns": "",
+    "auth_bypass": ""
+  },
+  "ci": {
+    "auto_fix": true,
+    "max_fix_attempts": 2
+  }
+}
