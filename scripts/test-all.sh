@@ -8,13 +8,14 @@
 # CONFIGURE: Replace the {{PLACEHOLDER}} values below with your project's commands.
 
 set -o pipefail
+shopt -s globstar
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── CONFIGURE ──────────────────────────────────────────────────────
-UNIT_TEST_CMD='{{UNIT_TEST_CMD}}'
-E2E_TEST_CMD='{{E2E_TEST_CMD}}'
-BUILD_TEST_CMD='{{BUILD_TEST_CMD}}'
+UNIT_TEST_CMD='shopt -s globstar; node --test test/**/*.test.mjs'
+E2E_TEST_CMD='npx playwright test'
+BUILD_TEST_CMD=':'
 # ────────────────────────────────────────────────────────────────────
 
 BOLD='\033[1m'
@@ -46,7 +47,7 @@ get_port() {
   fi
   local project_root
   project_root="$(cd "$SCRIPT_DIR/.." && pwd)"
-  local main_repo='{{MAIN_REPO_PATH}}'
+  local main_repo='/workspaces/touchgrass'
   if [[ "$main_repo" != '{{MAIN_REPO_PATH}}' ]] && [[ "$project_root" == "$main_repo" ]]; then
     echo 8080
     return

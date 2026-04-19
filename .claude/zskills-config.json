@@ -8,18 +8,18 @@
     "branch_prefix": "feat/"
   },
   "testing": {
-    "unit_cmd": "",
-    "full_cmd": "",
-    "output_file": ".test-results.txt",
-    "file_patterns": [""]
+    "unit_cmd": "shopt -s globstar; node --test test/**/*.test.mjs",
+    "full_cmd": "bash scripts/test-all.sh",
+    "output_file": "/tmp/zskills-tests/touchgrass/.test-results.txt",
+    "file_patterns": ["test/**/*.test.mjs", "e2e/**/*.spec.mjs"]
   },
   "dev_server": {
-    "cmd": "",
+    "cmd": "python3 -m http.server $DEV_PORT",
     "port_script": "scripts/port.sh",
     "main_repo_path": "/workspaces/touchgrass"
   },
   "ui": {
-    "file_patterns": "",
+    "file_patterns": "src/.*\\.(mjs|js|css|html)$",
     "auth_bypass": ""
   },
   "ci": {

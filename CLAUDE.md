@@ -2,32 +2,41 @@
 
 ## Architecture
 
-<!-- TODO: describe the source layout (top-level directories, entrypoints). Fresh repo — nothing to describe yet. -->
+Source layout:
+
+- `src/main.mjs` -- entrypoint; bootstraps the title UI and exposes the dev-only `window.__game` surface.
+- `src/state.mjs` -- state machine (`title | playing | paused | level-won | settings | farm`).
+- `src/loop.mjs` -- `requestAnimationFrame` loop with `dt` clamp and FPS sampler.
+- `src/ui/` -- UI modules (`title.mjs` lives here; HUD, overlays, settings modal, farm screen arrive in later phases).
+- `src/grass/` -- grass model (Phase 2+).
+- `src/input/` -- pointer / touch input (Phase 2+).
+- `src/render/` -- canvas + grass renderer (Phase 2+).
+- `src/levels.mjs`, `src/moves.mjs`, `src/insects/`, `src/audio.mjs`, `src/haptics.mjs`, `src/storage.mjs` -- land in Phase 4+.
+- `test/` -- unit tests (`node --test`).
+- `e2e/` -- Playwright specs.
+
+This project does not run a linter; `.editorconfig` is the style reference.
 
 ## Dev Server
 
 ```bash
-# TODO: set dev server command in .claude/zskills-config.json (dev_server.cmd)
+python3 -m http.server $DEV_PORT
 ```
 
 The port is determined automatically by `scripts/port.sh`: **8080** for the main repo (`/workspaces/touchgrass`), a **deterministic unique port** for each worktree (derived from the project root path). Run `bash scripts/port.sh` to see your port. Override with `DEV_PORT=NNNN` env var if needed.
 
 **NEVER use `kill -9`, `killall`, `pkill`, or `fuser -k` to stop processes.** These can kill container-critical processes or disrupt other sessions' dev servers and E2E tests. If a port is busy, check what's on it with `lsof -i :<port>` and ask the user to stop it manually.
 
-**Auth gate:** The app requires a password. For automated browser testing, bypass it:
-```js
-// TODO: set auth bypass snippet in .claude/zskills-config.json (ui.auth_bypass) if the app has auth
-```
-Then reload the page.
+**Auth gate:** no auth; `ui.auth_bypass` is empty because Touch Grass has no login flow.
 
 ## Tests
 
 ```bash
-# TODO: set unit test command in .claude/zskills-config.json (testing.unit_cmd)    # Unit tests only -- fast, use while working
-# TODO: set full test command in .claude/zskills-config.json (testing.full_cmd)    # ALL suites -- use before committing
+shopt -s globstar; node --test test/**/*.test.mjs    # Unit tests only -- fast, use while working
+bash scripts/test-all.sh                              # ALL suites -- use before committing
 ```
 
-**`# TODO: set full test command in .claude/zskills-config.json (testing.full_cmd)` must pass before every commit.** When reporting test
+**`bash scripts/test-all.sh` must pass before every commit.** When reporting test
 results, always state the COMMAND you ran and list EACH suite with its result.
 If a suite was skipped, say so explicitly with the reason.
 Never say just "all tests pass" -- specify which suites actually ran and the
@@ -35,7 +44,7 @@ command that ran them.
 
 **NEVER weaken tests to make them pass.** Do not loosen tolerances, widen mismatch thresholds, skip assertions, or remove test cases to avoid failures. When a test fails, always find the root cause. Fix the code that's broken -- not the test. Only alter a test if the test itself is genuinely wrong (e.g., testing the wrong expected value). Weakened tests will be caught in review and the change will be rejected.
 
-**NEVER modify the working tree to check if a failure is pre-existing.** No `git stash && # TODO: set unit test command in .claude/zskills-config.json (testing.unit_cmd) && git stash pop`, no `git checkout <old-commit>`, no temporary worktrees for comparison. These workflows are fragile -- context compaction between the modification and the restore will lose your changes. Past failure: an agent stashed changes, checked out a prior commit to verify a test failure was pre-existing, hit compaction, and never restored the working tree. If you touched code and tests fail, fix them. If you only touched content (markdown, images, etc.), don't run tests at all.
+**NEVER modify the working tree to check if a failure is pre-existing.** No `git stash && shopt -s globstar; node --test test/**/*.test.mjs && git stash pop`, no `git checkout <old-commit>`, no temporary worktrees for comparison. These workflows are fragile -- context compaction between the modification and the restore will lose your changes. Past failure: an agent stashed changes, checked out a prior commit to verify a test failure was pre-existing, hit compaction, and never restored the working tree. If you touched code and tests fail, fix them. If you only touched content (markdown, images, etc.), don't run tests at all.
 
 **NEVER thrash on a failing fix.** If you attempt a fix, run tests, and the same test fails again, STOP. Do not try a third approach to the same problem -- you are guessing and will keep guessing wrong. Report: (1) what you tried, (2) what failed both times, (3) why you think it's failing. Let the user decide the next step. This applies to all retry loops: fix+verify cycles, test failures after cherry-pick, and any "fix -> test -> still fails" pattern. Two attempts at the same error is the maximum.
 
@@ -46,7 +55,7 @@ is:
 ```bash
 TEST_OUT="/tmp/zskills-tests/$(basename "$(pwd)")"
 mkdir -p "$TEST_OUT"
-# TODO: set full test command in .claude/zskills-config.json (testing.full_cmd) > "$TEST_OUT/.test-results.txt" 2>&1
+bash scripts/test-all.sh > "$TEST_OUT/.test-results.txt" 2>&1
 ```
 
 Then read `"$TEST_OUT/.test-results.txt"` to inspect failures. Never pipe
@@ -63,7 +72,8 @@ file a GitHub issue with the error output and mark the test `it.skip('name
 
 ### Test files
 
-<!-- TODO: describe test file patterns (e.g. `src/**/*.test.ts`) -->
+- Unit tests live in `test/**/*.test.mjs` (run via `node --test`).
+- E2E tests live in `e2e/**/*.spec.mjs` (run via `npx playwright test`).
 
 ## Playwright CLI (Browser Automation)
 

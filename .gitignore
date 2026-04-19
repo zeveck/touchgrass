@@ -7,3 +7,7 @@
 .playwright-cli/
 # Playwright CLI screenshots and page snapshots
 .playwright/**/output/
+node_modules/
+test-results/
+playwright-report/
+.test-results.txt

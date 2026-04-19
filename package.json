@@ -1,0 +1,13 @@
+{
+  "name": "touchgrass",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "shopt -s globstar; node --test test/**/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:all": "bash scripts/test-all.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
