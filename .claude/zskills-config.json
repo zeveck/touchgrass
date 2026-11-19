@@ -14,12 +14,12 @@
     "file_patterns": ["test/**/*.test.mjs", "e2e/**/*.spec.mjs"]
   },
   "dev_server": {
-    "cmd": "python3 -m http.server $DEV_PORT",
+    "cmd": "python3 -m http.server $DEV_PORT --directory game",
     "port_script": "scripts/port.sh",
     "main_repo_path": "/workspaces/touchgrass"
   },
   "ui": {
-    "file_patterns": "src/.*\\.(mjs|js|css|html)$",
+    "file_patterns": "game/src/.*\\.(mjs|js|css|html)$",
     "auth_bypass": ""
   },
   "ci": {

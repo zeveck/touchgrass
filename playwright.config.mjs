@@ -6,7 +6,7 @@ const PORT = Number(execSync('bash scripts/port.sh').toString().trim()) || 8000;
 export default defineConfig({
   testDir: './e2e',
   webServer: {
-    command: `python3 -m http.server ${PORT}`,
+    command: `python3 -m http.server ${PORT} --directory game`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: true,
     timeout: 30000,

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getState, setState, __resetForTests } from '../src/state.mjs';
+import { getState, setState, __resetForTests } from '../game/src/state.mjs';
 
 test('state: starts in title', () => {
   __resetForTests();

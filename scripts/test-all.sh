@@ -75,7 +75,7 @@ has_changed_source_files() {
   unstaged=$(git diff --name-only 2>/dev/null)
   all_changed=$(printf '%s\n%s' "$staged" "$unstaged" | sort -u | grep -v '^$')
 
-  source_files=$(echo "$all_changed" | grep -E '^(src/|tests/e2e/).*\.(js|ts|css|html)$')
+  source_files=$(echo "$all_changed" | grep -E '^(game/|e2e/).*\.(m?js|ts|css|html)$')
   if [[ -n "$source_files" ]]; then
     echo "$source_files"
     return 0
@@ -108,7 +108,7 @@ else
   if e2e_relevant=$(has_changed_source_files); then
     printf '%bx FAILED -- dev server not running on port %s, but source files changed:%b\n' "$RED" "$PORT" "$RESET"
     printf '  %s\n' "$e2e_relevant"
-    printf '\n  E2E tests cannot be skipped when src/ files are modified.\n'
+    printf '\n  E2E tests cannot be skipped when game/ files are modified.\n'
     printf '  Start the dev server and re-run tests.\n\n'
     record "E2E" "fail"
   else

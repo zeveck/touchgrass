@@ -4,14 +4,14 @@
 
 Source layout:
 
-- `src/main.mjs` -- entrypoint; bootstraps the title UI and exposes the dev-only `window.__game` surface.
-- `src/state.mjs` -- state machine (`title | playing | paused | level-won | settings | farm`).
-- `src/loop.mjs` -- `requestAnimationFrame` loop with `dt` clamp and FPS sampler.
-- `src/ui/` -- UI modules (`title.mjs` lives here; HUD, overlays, settings modal, farm screen arrive in later phases).
-- `src/grass/` -- grass model (Phase 2+).
-- `src/input/` -- pointer / touch input (Phase 2+).
-- `src/render/` -- canvas + grass renderer (Phase 2+).
-- `src/levels.mjs`, `src/moves.mjs`, `src/insects/`, `src/audio.mjs`, `src/haptics.mjs`, `src/storage.mjs` -- land in Phase 4+.
+- `game/src/main.mjs` -- entrypoint; bootstraps the title UI and exposes the dev-only `window.__game` surface.
+- `game/src/state.mjs` -- state machine (`title | playing | paused | level-won | settings | farm`).
+- `game/src/loop.mjs` -- `requestAnimationFrame` loop with `dt` clamp and FPS sampler.
+- `game/src/ui/` -- UI modules (`title.mjs` lives here; HUD, overlays, settings modal, farm screen arrive in later phases).
+- `game/src/grass/` -- grass model (Phase 2+).
+- `game/src/input/` -- pointer / touch input (Phase 2+).
+- `game/src/render/` -- canvas + grass renderer (Phase 2+).
+- `game/src/levels.mjs`, `game/src/moves.mjs`, `game/src/insects/`, `game/src/audio.mjs`, `game/src/haptics.mjs`, `game/src/storage.mjs` -- land in Phase 4+.
 - `test/` -- unit tests (`node --test`).
 - `e2e/` -- Playwright specs.
 
@@ -20,7 +20,7 @@ This project does not run a linter; `.editorconfig` is the style reference.
 ## Dev Server
 
 ```bash
-python3 -m http.server $DEV_PORT
+python3 -m http.server $DEV_PORT --directory game
 ```
 
 The port is determined automatically by `scripts/port.sh`: **8080** for the main repo (`/workspaces/touchgrass`), a **deterministic unique port** for each worktree (derived from the project root path). Run `bash scripts/port.sh` to see your port. Override with `DEV_PORT=NNNN` env var if needed.
