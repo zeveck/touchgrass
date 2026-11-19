@@ -3,3 +3,7 @@
 .env.local
 .env.*.local
 .claude/settings.local.json
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+# Playwright CLI screenshots and page snapshots
+.playwright/**/output/
