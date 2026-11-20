@@ -1,0 +1,16 @@
+{
+  "name": "Touch Grass",
+  "short_name": "Touch Grass",
+  "description": "Run your hand through the meadow: a calm game of sweeping grass, golden light and friendly bugs.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#fbf3df",
+  "theme_color": "#fbf3df",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

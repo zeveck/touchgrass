@@ -231,7 +231,9 @@ test('title: Start goes into field 1; Esc pauses; Resume and Restart work', asyn
   expect(errors).toEqual([]);
 });
 
-test('field 15: Finish leads to the done card, and back to the title', async ({ page }) => {
+// Milestone 4: the ending is a screen of its own and leads back to the map
+// (GAME_DESIGN.md "Screens", Ending); the map's back button reaches the title.
+test('field 15: Finish leads to the ending, then the map, and back to the title', async ({ page }) => {
   const errors = watchErrors(page);
   await openField(page, 15);
   await page.evaluate(() => window.__game.setMeter(1));
@@ -241,7 +243,9 @@ test('field 15: Finish leads to the done card, and back to the title', async ({ 
   await finish.click();
   await expect.poll(() => page.evaluate(() => window.__game.state)).toBe('ending');
   await expect(page.getByTestId('card-done')).toContainText('You touched all the grass.');
-  await page.getByTestId('btn-ending-title').click();
+  await page.getByTestId('btn-ending-map').click();
+  await expect.poll(() => page.evaluate(() => window.__game.state)).toBe('map');
+  await page.getByTestId('btn-map-back').click();
   await expect.poll(() => page.evaluate(() => window.__game.state)).toBe('title');
   await expect(page.getByRole('heading', { name: /touch grass/i })).toBeVisible();
   expect(errors).toEqual([]);

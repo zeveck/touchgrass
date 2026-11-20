@@ -9,8 +9,15 @@
 // Events are queued with their timestamps and drained by the fixed-step update
 // (the sim stamps a brush capsule between consecutive samples).
 //
-// queue entries: { kind: 'down' | 'move' | 'up', x, y, t (s), type, cancel? }
-// x, y are CSS px relative to the element's top-left.
+// - Hover-sweep (a desktop setting): with `hover` on, a mouse moving over the
+//   field with no button held queues 'hover' samples, and 'hoverend' when it
+//   leaves. The game turns those into a stroke.
+// - While the bug report form is open, presses are ignored.
+//
+// queue entries: { kind: 'down' | 'move' | 'up' | 'hover' | 'hoverend', x, y,
+// t (s), type, cancel? }; x, y are CSS px relative to the element's top-left.
+
+const reportOpen = () => typeof window !== 'undefined' && !!window.gameReport?.isOpen?.();
 
 export class PointerInput {
   constructor(el) {
@@ -19,6 +26,7 @@ export class PointerInput {
     this.activeType = null;
     this.queue = [];
     this.enabled = true;
+    this.hover = false;
     this.stats = { down: 0, up: 0, cancel: 0, lost: 0, blur: 0, ignored: 0 };
     this._onDown = this._onDown.bind(this);
     this._onMove = this._onMove.bind(this);
@@ -27,6 +35,9 @@ export class PointerInput {
     this._onLost = this._onLost.bind(this);
     this._onBlur = this._onBlur.bind(this);
     this._onContext = (e) => e.preventDefault();
+    this._onLeave = (e) => {
+      if (e.pointerType === 'mouse' && this.activeId === null) this.queue.push({ kind: 'hoverend', x: 0, y: 0, t: e.timeStamp / 1000, type: 'mouse' });
+    };
   }
 
   attach() {
@@ -37,6 +48,7 @@ export class PointerInput {
     el.addEventListener('pointercancel', this._onCancel);
     el.addEventListener('lostpointercapture', this._onLost);
     el.addEventListener('contextmenu', this._onContext);
+    el.addEventListener('pointerleave', this._onLeave);
     window.addEventListener('blur', this._onBlur);
   }
 
@@ -48,6 +60,7 @@ export class PointerInput {
     el.removeEventListener('pointercancel', this._onCancel);
     el.removeEventListener('lostpointercapture', this._onLost);
     el.removeEventListener('contextmenu', this._onContext);
+    el.removeEventListener('pointerleave', this._onLeave);
     window.removeEventListener('blur', this._onBlur);
   }
 
@@ -57,7 +70,7 @@ export class PointerInput {
   }
 
   _onDown(e) {
-    if (!this.enabled) return;
+    if (!this.enabled || reportOpen()) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (this.activeId !== null) { this.stats.ignored++; return; }   // first pointer wins
     e.preventDefault();
@@ -70,7 +83,13 @@ export class PointerInput {
   }
 
   _onMove(e) {
-    if (e.pointerId !== this.activeId) return;
+    if (e.pointerId !== this.activeId) {
+      if (this.hover && this.enabled && this.activeId === null && e.pointerType === 'mouse' && e.buttons === 0 && !reportOpen()) {
+        const p = this._pos(e);
+        this.queue.push({ kind: 'hover', x: p.x, y: p.y, t: e.timeStamp / 1000, type: 'mouse' });
+      }
+      return;
+    }
     e.preventDefault();
     const list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null;
     const evs = list && list.length ? list : [e];

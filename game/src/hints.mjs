@@ -67,3 +67,20 @@ export function hintsSeenList(seen) {
   const s = new Set(seen);
   return HINTS.filter((h) => s.has(h.id));
 }
+
+// A guest challenge's checklist card: one short line for each new thing up
+// to field n (GAME_DESIGN.md "Screens", Challenge links).
+export const CHECKLIST = Object.freeze({
+  sweep: 'Drag across the grass to sweep it. Fill the meter to the line.',
+  regrow: 'Swept grass grows back: sweep it again once it stands.',
+  'short-ladybug': 'Tap a friendly bug to say hello.',
+  tall: 'Tall grass is worth more.',
+  'ant-ring': 'Grumpy bugs glow red: move away. A Ring calms them.',
+  'stiff-line': 'Stiff grass needs two strokes. A Line flattens it in one.',
+  bee: 'Bees and wasps roam wider: steer around the red glow.',
+  'hedge-clear': 'Full Clear touches every blade at once.',
+});
+
+export function checklistFor(n) {
+  return HINTS.filter((h) => h.field <= n && CHECKLIST[h.id]).map((h) => CHECKLIST[h.id]);
+}

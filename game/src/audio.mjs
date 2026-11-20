@@ -19,6 +19,7 @@
 // - Bells: soft FM bells in D major, made in code.
 
 import { readSave, writeSave } from './storage.mjs';
+import { getSettings } from './prefs.mjs';
 
 const A = 'assets/audio/';
 export const TRACKS = Object.freeze({
@@ -76,6 +77,9 @@ class Audio {
   constructor() {
     this.ctx = null;
     this.muted = !!readSave().settings.muted;
+    // The Settings sliders: music, and sound (effects, bells, ambience), 0..1.
+    const st = getSettings();
+    this.vol = { music: st.music, sound: st.sound };
     this.raw = new Map();        // url -> Promise<ArrayBuffer>
     this.buffers = new Map();    // url -> Promise<{ buffer, trim }>
     this.scene = null;           // music wanted: 'title' | 'morning' | ...
@@ -102,7 +106,13 @@ class Audio {
     for (const t of ['pointerup', 'click', 'keydown', 'touchend']) {
       window.addEventListener(t, this._resume, { capture: true });
     }
-    // Fetch the bytes early (decoding needs the context).
+  }
+
+  // Fetch the bytes early (decoding needs the context). Called once the title
+  // is up, so the sounds never hold up the title's own art.
+  prefetch() {
+    if (this.prefetched) return;
+    this.prefetched = true;
     this._fetch(RUSTLE_URL);
     this._fetch(BUZZ_URL);
     for (const e of Object.values(EFFECTS)) this._fetch(e.url);
@@ -124,9 +134,9 @@ class Audio {
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(ctx.destination);
-    this.musicBus = ctx.createGain(); this.musicBus.gain.value = MUSIC_BUS; this.musicBus.connect(this.master);
-    this.ambBus = ctx.createGain(); this.ambBus.gain.value = AMB_BUS; this.ambBus.connect(this.master);
-    this.sfxBus = ctx.createGain(); this.sfxBus.gain.value = SFX_BUS; this.sfxBus.connect(this.master);
+    this.musicBus = ctx.createGain(); this.musicBus.gain.value = this._busLevel('music'); this.musicBus.connect(this.master);
+    this.ambBus = ctx.createGain(); this.ambBus.gain.value = this._busLevel('amb'); this.ambBus.connect(this.master);
+    this.sfxBus = ctx.createGain(); this.sfxBus.gain.value = this._busLevel('sfx'); this.sfxBus.connect(this.master);
     this._resume();
     window.removeEventListener('pointerdown', this._unlock, { capture: true });
     window.removeEventListener('keydown', this._unlock, { capture: true });
@@ -183,6 +193,8 @@ class Audio {
       music: this.track ? this.track.name : null,
       ambience: this.ambNode ? this.amb : null,
       ducked: this.ducked,
+      volume: { ...this.vol },
+      buses: this.ctx ? { music: +this.musicBus.gain.value.toFixed(4), sfx: +this.sfxBus.gain.value.toFixed(4) } : null,
       rustle: this.rustle ? +this.rustle.gain.gain.value.toFixed(3) : null,
       rustleRate: this.rustle ? +this.rustle.src.playbackRate.value.toFixed(3) : null,
       buzz: this.buzz ? +this.buzz.gain.gain.value.toFixed(3) : null,
@@ -205,7 +217,41 @@ class Audio {
 
   toggleMute() { this.setMuted(!this.muted); }
 
+  // ---- volume (the Settings sliders) ----------------------------------------
+
+  // A slider's 0..1 as a gain on a squared curve (louder steps at the top).
+  // The default (0.8) is the mix as tuned: gain 1.
+  static curve(v) { return v <= 0 ? 0 : (v / 0.8) ** 2; }
+
+  _busLevel(bus) {
+    const v = bus === 'music' ? this.vol.music : this.vol.sound;
+    const base = bus === 'music' ? MUSIC_BUS : bus === 'amb' ? AMB_BUS : SFX_BUS;
+    const duck = !this.ducked ? 1 : bus === 'music' ? 0.35 : bus === 'amb' ? 0.4 : 1;
+    return base * Audio.curve(v) * duck;
+  }
+
+  setVolumes({ music, sound } = {}) {
+    if (Number.isFinite(music)) this.vol.music = Math.max(0, Math.min(1, music));
+    if (Number.isFinite(sound)) this.vol.sound = Math.max(0, Math.min(1, sound));
+    if (this.ctx) {
+      const t = this.ctx.currentTime;
+      this.musicBus.gain.setTargetAtTime(this._busLevel('music'), t, 0.05);
+      this.ambBus.gain.setTargetAtTime(this._busLevel('amb'), t, 0.05);
+      this.sfxBus.gain.setTargetAtTime(this._busLevel('sfx'), t, 0.05);
+    }
+    this._emit();
+  }
+
   // ---- music ----------------------------------------------------------------
+
+  // The ending: the music fades away over `secs`, leaving the ambience.
+  fadeMusicOut(secs = 8) {
+    this.scene = null;
+    const old = this.track;
+    this.track = null;
+    if (old && this.ctx) this._fadeOutTrack(old, secs);
+    this._emit();
+  }
 
   setMusic(name) {
     if (name === this.scene && (this.track || !this.ctx)) return;
@@ -274,8 +320,8 @@ class Audio {
     this.ducked = !!on;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.musicBus.gain.setTargetAtTime(MUSIC_BUS * (on ? 0.35 : 1), t, 0.15);
-    this.ambBus.gain.setTargetAtTime(AMB_BUS * (on ? 0.4 : 1), t, 0.15);
+    this.musicBus.gain.setTargetAtTime(this._busLevel('music'), t, 0.15);
+    this.ambBus.gain.setTargetAtTime(this._busLevel('amb'), t, 0.15);
     if (on) { this.setRustle(false); this.setBuzz(0); }
     this._emit();
   }

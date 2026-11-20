@@ -26,8 +26,18 @@ import { BugRenderer, bugPortrait } from './render/bugs.mjs';
 import { drawPreview, MoveFx } from './render/moves.mjs';
 import { Toolbar } from './ui/toolbar.mjs';
 import { PressWait } from './input/tap.mjs';
-import { hintFor, hintsSeenList } from './hints.mjs';
-import { befriend, hintsSeen, markHintSeen } from './storage.mjs';
+import { hintFor, hintsSeenList, checklistFor } from './hints.mjs';
+import {
+  befriend, hintsSeen, markHintSeen, recordResult, setHeadStart, takeHeadStart, readSave,
+} from './storage.mjs';
+import { scoreOf } from './sim/score.mjs';
+import { reducedMotion as prefReduced, getSettings } from './prefs.mjs';
+import { SWEEP_IDLE_S } from './sim/world.mjs';
+import { go } from './nav.mjs';
+import { FADE_MS } from './ui/screens.mjs';
+import { ENDING_FADE_MS } from './ui/ending.mjs';
+import { share } from './ui/share.mjs';
+import { isModalOpen } from './ui/modal.mjs';
 
 const HAND_URL = 'assets/ui/hand.png';
 const MOVE_HOWTO = {
@@ -36,8 +46,12 @@ const MOVE_HOWTO = {
   clear: 'Full Clear: tap the field',
 };
 
-function reducedMotion() {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Reduced motion: the Settings choice (Auto follows the system).
+const reducedMotion = prefReduced;
+
+// The bug report form is open: the game ignores its own keys and pointer.
+export function reportOpen() {
+  return typeof window !== 'undefined' && !!window.gameReport?.isOpen?.();
 }
 
 function union(a, b) {
@@ -46,7 +60,8 @@ function union(a, b) {
   return { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) };
 }
 
-const GAME_STATES = new Set(['playing', 'paused', 'level-won', 'ending', 'hint']);
+// The states drawn by the field's layer (the others are DOM screens above it).
+const GAME_STATES = new Set(['playing', 'paused', 'level-won', 'hint']);
 const WIN_DELAY_S = 2.4;     // the bloom plays before the card
 
 export class Game {
@@ -72,6 +87,7 @@ export class Game {
     this.bugsR = new BugRenderer();
     this.input = new PointerInput(this.cv.live);
     this.input.attach();
+    this.input.hover = getSettings().hover;
     // Painted tufts by default; the code painter draws until they've loaded
     // (and stays, with ?tufts=code).
     this.grass = new GrassRenderer(codePainter);
@@ -80,15 +96,16 @@ export class Game {
     this.motes = new Motes();
     this.art = {};
     this.artReady = Promise.resolve();
-    // Preload what the first fields need while the title shows.
-    loadAll([SOIL_URL, ...FLOWER_URLS, 'assets/ui/flower-petal.png', sceneUrl('morning', true), sceneUrl('morning', false),
-      HAND_URL, 'assets/ui/ring.png', 'assets/ui/line.png', 'assets/ui/clear.png']).catch(() => {});
     this.world = null;
     this.layout = null;
     this.n = 0;
     this.pendingField = 1;
-    this.pendingHeadStart = null;     // { field } -- at most one held
-    this.startedWithHeadStart = false;
+    this.startedWithHeadStart = false;   // the held head start lives in the save
+    this.challenge = null;      // { f, s, n, guest } while playing a challenge link
+    this.result = null;         // the last win: { score, best, isBest, prevBest }
+    this.hoverOn = false;       // hover-sweep: a stroke with no button held
+    this.hoverMoveT = 0;
+    this.hideT = 0;
     this.lastInputT = 0;
     this.autopilot = null;
     this.solveResolve = null;
@@ -137,49 +154,88 @@ export class Game {
     });
   }
 
+  // Preload what the first fields need while the title shows (called once
+  // the title is up, so it never holds up the title's own art).
+  preload() {
+    loadAll([SOIL_URL, ...FLOWER_URLS, 'assets/ui/flower-petal.png', sceneUrl('morning', true), sceneUrl('morning', false),
+      HAND_URL, 'assets/ui/ring.png', 'assets/ui/line.png', 'assets/ui/clear.png']).catch(() => {});
+  }
+
   // ---- screens -----------------------------------------------------------
 
   _onState(next, prev) {
-    this.root.hidden = !GAME_STATES.has(next);
     this.dirty = true;
-    this._audioFor(next);
+    this._audioFor(next, prev);
+    clearTimeout(this.hideT);
+    if (GAME_STATES.has(next)) {
+      this.root.hidden = false;
+    } else {
+      // A DOM screen fades in over the field: hide the field (and its card)
+      // once it's covered, so nothing underneath flashes through.
+      this.input.release();
+      this._hoverEnd();
+      this.autopilot = null;
+      if (next === 'ending') this.cards.close();
+      const ms = (reducedMotion() ? 0 : next === 'ending' ? ENDING_FADE_MS : FADE_MS) + 80;
+      this.hideT = setTimeout(() => {
+        if (GAME_STATES.has(getState())) return;
+        this.root.hidden = true;
+        if (this.cards.kind !== 'error') this.cards.close();
+      }, ms);
+      if (next === 'title' || next === 'map') this.challenge = null;
+    }
     if (next !== 'playing') { this.disarm(); audio.setBuzz(0); }
     if (next === 'playing') {
-      if (prev === 'title' || prev === 'challenge' || prev === 'map' || !this.world) {
+      if (prev === 'title' || prev === 'challenge' || prev === 'map' || prev === 'ending' || !this.world) {
         this.open(this.pendingField || 1);
       }
       if (this.cards.kind !== 'error') this.cards.close();
       this.hud.show(true);
       this.toolbar.show(true);
+      if (prev === 'paused') window.gameReport?.resumed();
     } else if (next === 'hint') {
       this.input.release();
       this.input.drain();
       const h = this.hint;
-      if (h) this.cards.showHint(h, () => this.dismissHint());
+      if (h && h.checklist) this.cards.showChecklist(h.items, h.name, () => this.dismissHint());
+      else if (h) this.cards.showHint(h, () => this.dismissHint());
     } else if (next === 'paused') {
       this.input.release();
+      this._hoverEnd();
+      // The report's picture is the field as it was, not the pause card.
+      if (prev === 'playing') window.gameReport?.snapshot();
       this._showPauseCard();
     } else if (next === 'level-won') {
       this.input.release();
       const w = this.world;
+      const r = this.result || { score: 0, best: 0, isBest: false, prevBest: null };
       this.hud.announce(`Field ${this.n} complete`);
+      const guest = !!(this.challenge && this.challenge.guest);
       this.cards.showComplete({
         n: this.n, name: w.spec.name, time: w.wonAt, par: w.spec.par, whole: w.wholeAtWin,
         headStartEarned: w.headStartEarned, headStartUsed: w.energy.headStart,
         last: this.n >= LEVEL_COUNT,
         petted: w.petted, friends: w.bugs.list.filter((b) => !b.hostile).length,
+        score: r.score, best: r.best, isBest: r.isBest, prevBest: r.prevBest,
+        guest, challenge: this.challenge,
         onNext: () => this.next(),
-      });
-    } else if (next === 'ending') {
-      this.cards.showDone({
-        onTitle: () => setState('title'),
-        onReplay: () => { this.open(1); setState('playing'); },
+        onMap: () => go('level-won', 'btn-complete-map'),
+        onShare: () => share({ kind: 'field', n: this.n, score: r.score, friends: this._friendsForShare() }),
+        onTryAgain: () => { this.open(this.n); go('level-won', 'btn-try-again'); },
       });
     } else if (next === 'title') {
-      this.input.release();
-      this.cards.close();
       this.autopilot = null;
     }
+  }
+
+  // Up to three friends for the scorecard: petted on this field first, then
+  // any met before.
+  _friendsForShare() {
+    const out = [];
+    if (this.world) for (const b of this.world.bugs.list) if (!b.hostile && b.petted && !out.includes(b.sp)) out.push(b.sp);
+    const g = readSave().garden || {};
+    for (const sp of ['ladybug', 'butterfly', 'caterpillar', 'snail']) if (g[sp] && !out.includes(sp)) out.push(sp);
+    return out.slice(0, 3);
   }
 
   _showPauseCard() {
@@ -187,9 +243,46 @@ export class Game {
       fieldName: this.world ? `${this.n}. ${this.world.spec.name}` : '',
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
-      onTitle: () => setState('title'),
+      onTitle: () => go('paused', 'btn-pause-title'),
       onHowTo: hintsSeenList(hintsSeen()).length ? () => this.showHowTo() : null,
+      onSettings: () => go('paused', 'btn-pause-settings'),
+      onMap: () => go('paused', 'btn-pause-map'),
+      onReport: window.gameReport?.shown() ? () => window.gameReport?.open() : null,
     });
+  }
+
+  // Start field n from a menu (Play, a map patch, a challenge): the field
+  // opens as the state changes to 'playing'.
+  setPending(n, challenge = null) {
+    this.pendingField = n;
+    this.challenge = challenge;
+  }
+
+  // What the bug report and the debug hook read.
+  reportState() {
+    const w = this.world;
+    return {
+      screen: getState(),
+      field: w ? this.n : null,
+      meter: w ? +w.energy.frac.toFixed(3) : null,
+      whole: w ? +w.grid.wholeField().toFixed(3) : null,
+      time: w ? +w.time.toFixed(1) : null,
+      card: this.cards.kind,
+      armed: this.armed,
+      guest: !!(this.challenge && this.challenge.guest),
+      input: this.ptype,
+    };
+  }
+
+  // The field as a PNG (both layers), for the bug report.
+  grab() {
+    const c = document.createElement('canvas');
+    c.width = this.cv.live.width;
+    c.height = this.cv.live.height;
+    const x = c.getContext('2d');
+    x.drawImage(this.cv.bg, 0, 0);
+    x.drawImage(this.cv.live, 0, 0);
+    return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
   }
 
   showHowTo() {
@@ -200,14 +293,24 @@ export class Game {
 
   // The hint card was dismissed: saved as seen, and the field starts.
   dismissHint() {
-    if (this.hint) markHintSeen(this.hint.id);
+    const h = this.hint;
+    if (h && !h.checklist) markHintSeen(h.id);
+    if (h && h.checklist && this.challenge) this.challenge.checked = true;
     this.hint = null;
-    if (getState() === 'hint') setState('playing');
+    if (getState() === 'hint') go('hint', h && h.checklist ? 'btn-checklist-ok' : 'btn-hint-ok');
   }
 
   // Music, ambience and the rustle for a screen.
-  _audioFor(s) {
-    if (s === 'playing' || s === 'paused' || s === 'level-won' || s === 'hint') {
+  _audioFor(s, prev) {
+    // Settings over a paused field keeps the field's (ducked) music.
+    if (s === 'settings' && prev === 'paused') return;
+    if (s === 'level-won' && this.challenge && this.challenge.guest) {
+      // The guest-challenge result plays the title theme.
+      audio.setMusic('title');
+      audio.setAmbience('meadow');
+      audio.duck(false);
+      audio.setRustle(false);
+    } else if (s === 'playing' || s === 'paused' || s === 'level-won' || s === 'hint') {
       if (this.world) audio.setMusic(this.world.spec.time);
       audio.setAmbience('meadow');
       audio.duck(s === 'paused');
@@ -226,6 +329,9 @@ export class Game {
   }
 
   _onKey(e) {
+    // The report form, a modal card, or typing in a text box: not the game's keys.
+    if (reportOpen() || isModalOpen()) return;
+    if (e.target instanceof Element && e.target.closest('input, textarea, select')) return;
     const s = getState();
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ((e.key === 'm' || e.key === 'M') && !e.repeat) {
@@ -259,38 +365,45 @@ export class Game {
   }
 
   pause() {
-    if (getState() === 'playing') setState('paused');
+    if (getState() === 'playing') go('playing', 'btn-pause');
   }
 
   resume() {
-    if (getState() === 'paused') setState('playing');
+    if (getState() === 'paused') go('paused', 'btn-resume');
   }
 
   restart() {
     // A restart keeps a head start the field was started with.
     this.open(this.n || 1, { keepHeadStart: true });
-    if (getState() !== 'playing') setState('playing');
+    if (getState() === 'paused') go('paused', 'btn-restart');
+    else if (getState() !== 'playing') setState('playing');
     this.cards.close();
   }
 
   next() {
     if (this.n >= LEVEL_COUNT) {
-      setState('ending');
+      go('level-won', 'btn-next-field', 'ending');
       return;
     }
+    this.challenge = null;
     this.open(this.n + 1);
-    setState('playing');
+    go('level-won', 'btn-next-field', 'playing');
   }
 
-  // Load field n. Uses a pending head start for n (once), or keeps the one
-  // this field was started with on a restart.
+  get guest() { return !!(this.challenge && this.challenge.guest); }
+
+  // Load field n. Uses the held head start for n (once), or keeps the one
+  // this field was started with on a restart. A guest challenge never uses
+  // or earns one.
   open(n, { keepHeadStart = false } = {}) {
     let headStart = false;
-    if (keepHeadStart && this.n === n && this.startedWithHeadStart) {
+    if (this.challenge && this.challenge.f !== n) this.challenge = null;
+    if (this.guest) {
+      headStart = false;
+    } else if (keepHeadStart && this.n === n && this.startedWithHeadStart) {
       headStart = true;
-    } else if (this.pendingHeadStart && this.pendingHeadStart.field === n) {
+    } else if (takeHeadStart(n)) {
       headStart = true;
-      this.pendingHeadStart = null;
     }
     this.n = n;
     this.pendingField = n;
@@ -301,6 +414,8 @@ export class Game {
     this.input.release();
     this.input.drain();
     this.press = null;
+    this.hoverOn = false;
+    this.result = null;
     this.disarm();
     this.fxList = [];
     this.bugsR.clear();
@@ -309,7 +424,14 @@ export class Game {
     this._typicalPrices();
     // A hint card for what's new here, shown before the first stroke.
     this.hint = null;
-    this.pendingHint = this.hintsOn ? hintFor(n, hintsSeen()) : null;
+    // A guest challenge shows its checklist instead (hints aren't marked seen).
+    if (this.guest) {
+      // Once per challenge: Try again goes straight in.
+      this.pendingHint = this.hintsOn && !this.challenge.checked
+        ? { checklist: true, id: 'checklist', items: checklistFor(n), name: spec.name } : null;
+    } else {
+      this.pendingHint = this.hintsOn ? hintFor(n, hintsSeen()) : null;
+    }
     this.autopilot = null;
     this.winT = null;
     this.bloom = null;
@@ -471,7 +593,44 @@ export class Game {
       if (ev.kind === 'down') this._down(ev);
       else if (ev.kind === 'move') this._move(ev);
       else if (ev.kind === 'up') this._up(ev);
+      else if (ev.kind === 'hover') this._hover(ev);
+      else if (ev.kind === 'hoverend') this._hoverEnd();
     }
+  }
+
+  // Hover-sweep (Settings, desktop): the pointer sweeps whenever it moves
+  // over the field with no button held. Clicks still pet bugs and fire moves
+  // (a press ends the hover stroke). Resting the pointer for 0.4 s lifts it,
+  // so stiff grass gets its second stroke.
+  _hover(ev) {
+    const w = this.world, L = this.layout;
+    if (this.press || this.armed || w.won) return;
+    this.lastTouch = { x: ev.x, y: ev.y };
+    // Over a friend the sweep pauses (it would nudge the friend away), so a
+    // click can pet it.
+    if (w.friendAt(ev.x - L.field.x, ev.y - L.field.y)) { this._hoverEnd(); return; }
+    if (!this.hoverOn) {
+      w.pointerDown(ev.x - L.field.x, ev.y - L.field.y, 'mouse');
+      this.hoverOn = true;
+      this.lastInputT = ev.t;
+      if (this.n === 1) markHintSeen('sweep');
+    } else {
+      const dt = Math.max(0.001, ev.t - this.lastInputT);
+      this.lastInputT = ev.t;
+      w.pointerMove(ev.x - L.field.x, ev.y - L.field.y, dt);
+    }
+    this.hoverMoveT = ev.t;
+  }
+
+  _hoverEnd() {
+    if (!this.hoverOn) return;
+    this.hoverOn = false;
+    if (this.world && !this.press) this.world.pointerUp();
+  }
+
+  setHover(on) {
+    this.input.hover = !!on;
+    if (!on) this._hoverEnd();
   }
 
   // A press. On a friendly bug's pet area it waits to see if it's a tap (a
@@ -479,6 +638,7 @@ export class Game {
   // Anywhere else it sweeps (or starts the armed move) at once.
   _down(ev) {
     const L = this.layout;
+    this._hoverEnd();
     const pt = ev.type === 'touch' ? 'touch' : 'mouse';
     if (pt !== this.ptype) { this.ptype = pt; this._typicalPrices(); }   // brush (and so prices) differ by pointer
     this.lastTouch = { x: ev.x, y: ev.y };
@@ -616,6 +776,7 @@ export class Game {
     }
     this._applyInput();
     this._tickPress();
+    if (this.hoverOn && performance.now() / 1000 - this.hoverMoveT > SWEEP_IDLE_S) this._hoverEnd();
     if (this.armed && !this.input.down) {
       // The 5 s auto-cancel is paused while the pointer is down.
       this.armT += dt;
@@ -638,14 +799,15 @@ export class Game {
         audio.setBuzz(0);
         this.hud.setWarn(null);
         this.autopilot = null;
-        if (w.headStartEarned) this.pendingHeadStart = { field: this.n + 1 };
+        this._hoverEnd();
+        this._recordWin(w);
         audio.bloomArpeggio();
         const L = this.layout;
         const origin = this.lastTouch || { x: L.field.x + L.field.w / 2, y: L.field.y + L.field.h / 2 };
         this.bloom = new Bloom(w, L, origin, {
           flowers: FLOWER_URLS.map(imageNow),
           petal: imageNow('assets/ui/flower-petal.png'),
-          reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+          reduced: reducedMotion(),
         });
         audio.updateRustle(false, 0, 0);
         if (this.solveResolve) { const r = this.solveResolve; this.solveResolve = null; r(w.summary()); }
@@ -653,6 +815,20 @@ export class Game {
       this.winT += dt;
       if (this.winT >= WIN_DELAY_S && getState() === 'playing') setState('level-won');
     }
+  }
+
+  // The win is scored and saved at once (a guest result isn't: no unlock, no
+  // best, no head start). Friends petted were saved as they were petted.
+  _recordWin(w) {
+    const score = scoreOf({ n: this.n, time: w.wonAt, par: w.spec.par, whole: w.wholeAtWin, petted: w.petted });
+    if (this.guest) {
+      this.result = { score, best: null, isBest: false, prevBest: null };
+      return;
+    }
+    const r = recordResult(this.n, { score, cleared: w.wholeAtWin >= 1 });
+    this.result = { score, best: r.best, isBest: r.isBest, prevBest: r.prevBest };
+    // At most one head start is held: a new one replaces it.
+    if (w.headStartEarned) setHeadStart(this.n + 1);
   }
 
   _consumeFx() {

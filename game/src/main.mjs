@@ -1,15 +1,31 @@
-// src/main.mjs -- thin bootstrap.
+// src/main.mjs -- the bootstrap.
 //
-// Mounts the title UI and the gameplay screen, and wires up a dev-only
-// `window.__game` object (dev hosts only). Also parses `?dev=1&level=N` and,
-// when running on a dev host, jumps straight into field N.
+// Mounts the gameplay layer and the DOM screens (title, map, Bug Garden,
+// settings, challenge, ending) with cross-fades, reads a challenge link,
+// hooks up the bug report, registers the offline service worker, and wires a
+// dev-only `window.__game` object (dev hosts only). `?dev=1&level=N` on a dev
+// host jumps straight into field N (and wins over a challenge link).
 
 import { getState, setState, onChange } from './state.mjs';
 import { renderTitle } from './ui/title.mjs';
-import { Game } from './game.mjs';
+import { renderMap } from './ui/map.mjs';
+import { renderGarden } from './ui/garden.mjs';
+import { renderSettings } from './ui/settings.mjs';
+import { renderEnding, ENDING_FADE_MS } from './ui/ending.mjs';
+import { renderChallenge } from './ui/challenge.mjs';
+import { Screens } from './ui/screens.mjs';
+import { escapeModal, isModalOpen } from './ui/modal.mjs';
+import { scorecardDataUrl } from './ui/share.mjs';
+import { Game, reportOpen } from './game.mjs';
 import { LEVELS, LEVEL_COUNT } from './sim/levels.mjs';
 import { STEP } from './loop.mjs';
 import { audio } from './audio.mjs';
+import { go } from './nav.mjs';
+import { readSave, writeSave, isUnlocked } from './storage.mjs';
+import { watchMotion, onSettings } from './prefs.mjs';
+import { parseChallenge, hasChallengeParams, stripChallenge } from './share/link.mjs';
+import { loadAll } from './assets.mjs';
+import { CRAWL_URLS } from './render/titletoy.mjs';
 
 function isDevHost() {
   const host = location.hostname;
@@ -23,8 +39,8 @@ function installDebugHook(game) {
     const k = Number(n);
     if (!Number.isInteger(k) || k < 1 || k > LEVEL_COUNT) throw new Error(`No field ${n}`);
     const s = getState();
-    if (s === 'title' || s === 'map' || s === 'challenge') {
-      game.pendingField = k;
+    if (s === 'title' || s === 'map' || s === 'challenge' || s === 'ending') {
+      game.setPending(k);
       setState('playing');
     } else {
       game.open(k);
@@ -37,7 +53,7 @@ function installDebugHook(game) {
     setState,
     onChange,
     // Detailed state (the screen string stays on `state` for the original e2e).
-    info: () => ({ screen: getState(), ...(game.world ? game.world.summary() : {}), card: game.cards.kind, armed: game.armed }),
+    info: () => ({ screen: getState(), ...(game.world ? game.world.summary() : {}), card: game.cards.kind, armed: game.armed, guest: game.guest }),
     loadLevel,
     goToLevel: loadLevel,
     levels: () => LEVEL_COUNT,
@@ -60,6 +76,18 @@ function installDebugHook(game) {
     stats: () => game.stats(),
     audioState: () => audio.state(),
     _game: game,   // dev-only escape hatch for profiling
+    save: () => readSave(),
+    report: () => game.reportState(),
+    result: () => game.result,
+    challenge: () => game.challenge,
+    // Dev: unlock fields 1..n as if played (for map / ending checks).
+    unlockTo(n) {
+      const s = readSave();
+      for (let k = 1; k < n; k++) if (!s.progress.fields[k]) s.progress.fields[k] = { best: 100 * k + 200, cleared: k % 3 === 0 };
+      writeSave({ progress: { unlocked: Math.max(s.progress.unlocked, n), fields: s.progress.fields } });
+      return readSave().progress;
+    },
+    scorecard: (o = {}) => scorecardDataUrl(o),
     // Resolves once the painted art (tufts, scene, soil) for the field is in.
     ready: () => game.whenReady(),
     frames: () => game.frameLog,
@@ -85,15 +113,62 @@ function installDebugHook(game) {
   };
 }
 
+
+// Which screen each state shows in #app (the others are the field's layer).
+const DOM_SCREENS = {
+  title: (el, app) => renderTitle(el, app),
+  map: (el, app) => renderMap(el, app),
+  garden: (el) => renderGarden(el),
+  settings: (el, app) => renderSettings(el, app),
+  ending: (el) => renderEnding(el),
+  challenge: (el, app) => renderChallenge(el, app, app.pendingChallenge),
+};
+
+// Load the title's look (fonts and painting) before it shows, so it appears
+// once, in its real fonts and art (capped, so a slow font never blocks).
+const TITLE_ICONS = ['sound-on', 'sound-off', 'settings', 'map', 'garden'].map((n) => `assets/ui/${n}.png`);
+
+function titleReady() {
+  const portrait = innerHeight > innerWidth;
+  const wait = Promise.all([
+    document.fonts ? document.fonts.load('600 64px Fraunces') : null,
+    document.fonts ? document.fonts.load('700 18px Nunito') : null,
+    loadAll([`assets/scenes/title-${portrait ? '9x16' : '16x9'}.jpg`, ...TITLE_ICONS, ...CRAWL_URLS]),
+  ]).catch(() => {});
+  return Promise.race([wait, new Promise((r) => setTimeout(r, 6000))]);
+}
+
+// Once the title is up: the other screens' paintings, so they're there when
+// a screen fades in.
+function warmScreens() {
+  const o = innerHeight > innerWidth ? '9x16' : '16x9';
+  loadAll(['map', 'garden', 'ending'].map((n) => `assets/scenes/${n}-${o}.jpg`)).catch(() => {});
+}
+
+function hideLoading() {
+  const l = document.getElementById('loading');
+  if (!l) return;
+  l.classList.add('done');
+  setTimeout(() => l.remove(), 500);
+}
+
+function registerServiceWorker() {
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if ('serviceWorker' in navigator && (!local || new URLSearchParams(location.search).has('sw'))) {
+    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('sw:', e.message));
+  }
+}
+
 function mount() {
   const root = document.getElementById('app');
   if (!root) return;
 
   const params = new URLSearchParams(location.search);
   audio.install();
+  watchMotion();
   // Every button taps (a soft sound on press).
   document.addEventListener('click', (e) => {
-    if (e.target instanceof Element && e.target.closest('button')) audio.play('tap');
+    if (e.target instanceof Element && e.target.closest('button, a.btn')) audio.play('tap');
   }, true);
   const devHost = isDevHost();
   const game = new Game({
@@ -102,37 +177,101 @@ function mount() {
     hints: !(devHost && params.get('hints') === '0'),
     bugs: !(devHost && params.get('bugs') === '0'),
   });
+  onSettings((st) => game.setHover(st.hover));
 
-  if (devHost) installDebugHook(game);
+  const screens = new Screens(root);
+  const app = {
+    game,
+    pendingChallenge: null,
+    // Start field n from a screen's button (nav.mjs checks the move).
+    play(n, screen, id) {
+      game.setPending(n);
+      go(screen, id, 'playing');
+    },
+    // A challenge's Play: its field, as a guest when it isn't unlocked yet.
+    playChallenge(ch) {
+      game.setPending(ch.f, { ...ch, guest: !isUnlocked(ch.f) });
+      go('challenge', 'btn-challenge-play');
+    },
+    onCleared() {
+      game.setHover(false);
+    },
+  };
 
-  const renderFor = (state) => {
-    if (state === 'title') {
-      renderTitle(root);
-      audio.setMusic('title');
+  const showFor = (state) => {
+    const build = DOM_SCREENS[state];
+    if (build) {
+      screens.show(state, (el) => build(el, app), { fadeMs: state === 'ending' ? ENDING_FADE_MS : undefined });
     } else {
-      // Gameplay draws in its own layer (#game); other screens land later.
-      root.innerHTML = '';
+      screens.hide();
     }
   };
 
-  onChange((next) => {
-    renderFor(next);
+  onChange((next, prev) => {
+    const domNext = !!DOM_SCREENS[next], domPrev = !!DOM_SCREENS[prev];
+    // A page turns with a whoosh (not pausing, hints or the card in a field).
+    if (domNext || domPrev) audio.play('whoosh');
+    showFor(next);
   });
 
+  // Keys on the DOM screens: Esc closes a card, or goes back.
+  window.addEventListener('keydown', (e) => {
+    if (reportOpen()) return;
+    if (e.key !== 'Escape') return;
+    if (isModalOpen()) { e.preventDefault(); escapeModal(); return; }
+    const s = getState();
+    if (s === 'garden') { e.preventDefault(); go('garden', 'btn-garden-back'); }
+    else if (s === 'settings') { e.preventDefault(); go('settings', 'btn-settings-back'); }
+    else if (s === 'map') { e.preventDefault(); go('map', 'btn-map-back'); }
+    else if (s === 'challenge') { e.preventDefault(); go('challenge', 'btn-challenge-notnow'); }
+  });
+
+  // The bug report (vendor/report.js; shown once the game has a public repo).
+  window.gameReport?.setup({
+    game: 'Touch Grass', key: 'touchgrass', visibility: 'on',
+    state: () => game.reportState(),
+    pause: () => game.pause(),
+    grab: () => game.grab(),
+    releaseAll: () => game.input.release(),
+  });
+
+  if (devHost) installDebugHook(game);
+  registerServiceWorker();
+
   // Parse dev-level-skip query params. Guarded by hostname so production
-  // deploys never expose this backdoor.
+  // deploys never expose this backdoor. It wins over a challenge link.
   const dev = params.get('dev') === '1';
   const levelStr = params.get('level');
-  if (dev && isDevHost() && levelStr !== null) {
+  if (dev && devHost && levelStr !== null) {
     const levelNum = Number(levelStr);
     if (Number.isInteger(levelNum) && levelNum >= 1 && levelNum <= LEVEL_COUNT) {
-      game.pendingField = levelNum;
+      game.setPending(levelNum);
+      hideLoading();
+      audio.prefetch();
       setState('playing');
       return;
     }
   }
 
-  renderFor(getState());
+  // A challenge link: read it, then take it off the address bar.
+  const ch = parseChallenge(location.search, LEVEL_COUNT);
+  if (hasChallengeParams(location.search)) {
+    history.replaceState(history.state, '', location.pathname + stripChallenge(location.search) + location.hash);
+  }
+
+  titleReady().then(() => {
+    audio.setMusic('title');
+    if (ch) {
+      app.pendingChallenge = ch;
+      setState('challenge');
+    } else {
+      showFor('title');
+    }
+    requestAnimationFrame(hideLoading);
+    game.preload();
+    audio.prefetch();
+    setTimeout(warmScreens, 1500);
+  });
 }
 
 if (document.readyState === 'loading') {

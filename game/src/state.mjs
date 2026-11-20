@@ -1,9 +1,10 @@
 // src/state.mjs -- minimal state machine for Touch Grass.
 //
-// States: 'title' | 'playing' | 'paused' | 'level-won' | 'settings' | 'farm'
+// States: 'title' | 'playing' | 'paused' | 'level-won' | 'settings'
 //         | 'hint' | 'map' | 'ending' | 'challenge' | 'garden'
-// ('garden' is the design's Bug Garden; 'farm' stays for the title's current
-// button until the garden screen lands.)
+// ('garden' is the design's Bug Garden, the plan's Insect Farm.) Settings and
+// the Bug Garden return to the screen they came from (getPrevious()); the
+// buttons on every screen are listed in nav.mjs.
 //
 // Exposes: getState(), getPrevious(), setState(next), onChange(cb)
 // Invalid transitions throw in dev mode (anywhere the host isn't a production
@@ -17,7 +18,6 @@ const STATES = Object.freeze([
   'paused',
   'level-won',
   'settings',
-  'farm',
   'hint',
   'map',
   'ending',
@@ -25,20 +25,19 @@ const STATES = Object.freeze([
   'garden',
 ]);
 
-// Allowed transitions. Kept permissive for Phase 1 -- later phases will
-// tighten this where needed. Entries are "from" -> array of allowed "to".
+// Allowed transitions: "from" -> array of allowed "to".
+// (playing -> title and ending -> playing are the dev level skip.)
 const TRANSITIONS = Object.freeze({
-  title:       ['playing', 'settings', 'farm', 'garden', 'map', 'challenge'],
+  title:       ['playing', 'settings', 'garden', 'map', 'challenge'],
   playing:     ['paused', 'level-won', 'title', 'hint'],
   paused:      ['playing', 'title', 'settings', 'map'],
   'level-won': ['playing', 'title', 'map', 'ending'],
-  settings:    ['title', 'playing', 'paused', 'map', 'garden'],
-  farm:        ['title'],
+  settings:    ['title', 'paused', 'map'],
   hint:        ['playing', 'paused'],
   map:         ['playing', 'title', 'garden', 'settings'],
   ending:      ['title', 'map', 'playing'],
   challenge:   ['playing', 'title'],
-  garden:      ['title', 'map', 'settings'],
+  garden:      ['title', 'map'],
 });
 
 let current = 'title';
@@ -81,9 +80,15 @@ export function setState(next) {
       throw new Error(`Invalid transition: ${current} -> ${next}`);
     }
     // eslint-disable-next-line no-console
-    console.error(`Invalid transition: ${current} -> ${next}; showing the title`);
-    if (current === 'title') return;
-    next = 'title';
+    // The nearest safe screen: the map, or the title.
+    const safe = (TRANSITIONS[current] || []).includes('map') ? 'map' : 'title';
+    console.error(`Invalid transition: ${current} -> ${next}; showing the ${safe}`);
+    if (current === safe || !(TRANSITIONS[current] || []).includes(safe)) {
+      if (current === 'title') return;
+      next = 'title';
+    } else {
+      next = safe;
+    }
   }
   const prev = current;
   previous = prev;

@@ -3,14 +3,65 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Touch Grass</title>
+    <title>Touch Grass: run your hand through the meadow</title>
+    <meta name="description" content="A calm game about touching grass. Sweep a sunlit meadow with your finger or mouse, watch it turn gold and grow back, meet the bugs who live there, and open fifteen fields from morning to sunset.">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf3df" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c2419" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Touch Grass">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <!-- Link previews (the social card and absolute URLs land when the game is published). -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Touch Grass">
+    <meta property="og:description" content="Run your hand through the meadow. A calm game of sweeping grass, golden light and friendly bugs, on your phone or computer.">
+    <meta property="og:image" content="social-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Touch Grass: a painted summer meadow with a ladybug in the grass">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Touch Grass">
+    <meta name="twitter:description" content="Run your hand through the meadow. A calm game of sweeping grass, golden light and friendly bugs.">
+    <meta name="twitter:image" content="social-card.jpg">
+    <meta name="twitter:image:alt" content="Touch Grass: a painted summer meadow with a ladybug in the grass">
+    <link rel="preload" href="fonts/fraunces-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="./src/style.css">
     <style>
+      /* The loading screen: CSS only, so it shows at once (no art, system serif). */
       body { height: 100dvh; margin: 0; }
+      #loading {
+        position: fixed; inset: 0; z-index: 100;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: #fbf3df; color: #2b2a26;
+        font-family: Georgia, "Times New Roman", serif;
+        transition: opacity 420ms ease;
+      }
+      #loading.done { opacity: 0; pointer-events: none; }
+      #loading svg { width: 64px; height: 64px; transform-origin: 50% 92%; animation: tg-sway 2.4s ease-in-out infinite; }
+      #loading p { margin: 0; font-size: 28px; letter-spacing: 0.01em; }
+      @keyframes tg-sway { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+      @media (prefers-reduced-motion: reduce) { #loading svg { animation: none; } #loading { transition: none; } }
+      @media (prefers-color-scheme: dark) { #loading { background: #1c2419; color: #efe6cf; } }
     </style>
+    <!-- The bug report's plumbing runs before the game, so an error in the game can't stop it. -->
+    <script src="vendor/report.js"></script>
   </head>
   <body>
+    <div id="loading" aria-live="polite">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 6 C50 16 52 38 32 58 C12 38 14 16 32 6 Z" fill="#5f9e45" stroke="#2f6b34" stroke-width="3"/>
+        <path d="M32 12 L32 56 M32 26 L42 19 M32 36 L22 29 M32 45 L41 39" stroke="#2f6b34" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>
+      <p>Touch Grass</p>
+    </div>
     <div id="app"></div>
     <script type="module" src="./src/main.mjs"></script>
+    <script type="module" src="vendor/gh-feedback.js"></script>
+    <gh-feedback id="report" trigger="none" repo="" template="bug.yml"
+      heading="Report a bug" types="bug,feature" theme="light" color="#2f6b34"></gh-feedback>
   </body>
 </html>
