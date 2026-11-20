@@ -25,6 +25,18 @@ html, body {
   background: var(--bg);
   color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Robust pointers (GAME_DESIGN.md Controls): no pans, pull-to-refresh,
+     text selection or iOS long-press menu. */
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 
 #app {
@@ -108,3 +120,210 @@ button {
   justify-content: center;
   align-items: center;
 }
+
+/* ---- gameplay (milestone 1) ------------------------------------------- */
+
+:root {
+  --meadow: #5f9e45;
+  --deep-grass: #2f6b34;
+  --gold: #e7b84a;
+  --buttercup: #f4d35e;
+  --soil: #7a5a3a;
+  --sky-cream: #fbf3df;
+  --ink: #2b2a26;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.game-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: var(--sky-cream);
+  color: var(--ink);
+}
+.game-root[hidden] { display: none; }
+
+.game-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hud {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  align-items: center;
+  pointer-events: none;
+  color: var(--ink);
+}
+.hud[hidden] { display: none; }
+.hud.landscape {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 16px 14px;
+  gap: 14px;
+}
+.hud > * { pointer-events: auto; }
+.hud.landscape .hud-main { flex: none; }
+.hud-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.hud-name {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.hud.landscape .hud-name { white-space: normal; font-size: 16px; text-wrap: balance; }
+.hud-meter {
+  --pulse: 0;
+  position: relative;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(43, 42, 38, 0.18);
+  box-shadow: inset 0 0 0 2px var(--ink), 0 0 calc(var(--pulse) * 12px) rgba(255, 214, 110, 0.9);
+  overflow: hidden;
+}
+.hud-meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, #d9a636, var(--gold) 60%, var(--buttercup));
+  transition: transform 120ms linear;
+}
+.hud-meter-line {
+  position: absolute;
+  right: 0;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: var(--ink);
+}
+.hud-meter-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+}
+.hud-leaf {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 48px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.hud.portrait .hud-leaf { flex-direction: column; gap: 0; }
+.hud-leaf svg { width: 36px; height: 36px; display: block; }
+.hud-leaf .leaf-track { fill: rgba(251, 243, 223, 0.8); stroke: rgba(43, 42, 38, 0.25); stroke-width: 4; }
+.hud-leaf .leaf-ring {
+  fill: none;
+  stroke: var(--meadow);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 20px 20px;
+  transition: stroke-dashoffset 200ms linear;
+}
+.hud-leaf .leaf-shape { fill: var(--meadow); stroke: var(--ink); stroke-width: 1.4; }
+.hud-leaf.done .leaf-ring { stroke: var(--gold); }
+.hud-leaf.done .leaf-shape { fill: var(--gold); }
+.hud-leaf-text { white-space: nowrap; }
+.hud-pause {
+  background: rgba(251, 243, 223, 0.92);
+  border: 2px solid var(--ink);
+  color: var(--ink);
+}
+.hud-pause svg { width: 22px; height: 22px; fill: var(--ink); }
+.hud.landscape .hud-pause { align-self: flex-start; }
+
+.hud-toast {
+  position: absolute;
+  transform: translate(-50%, -8px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(251, 243, 223, 0.95);
+  border: 2px solid var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms ease, transform 250ms ease;
+  white-space: nowrap;
+}
+.hud-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.card-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  box-sizing: border-box;
+  background: rgba(43, 42, 38, 0.38);
+  z-index: 5;
+}
+.card-layer[hidden] { display: none; }
+.card {
+  width: min(360px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 22px 22px 20px;
+  border-radius: 18px;
+  background: var(--sky-cream);
+  border: 2px solid var(--ink);
+  box-shadow: 0 10px 30px rgba(43, 42, 38, 0.3);
+  text-align: center;
+  color: var(--ink);
+  animation: card-in 220ms ease-out;
+}
+@keyframes card-in { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+.card-kicker { margin: 0; font-size: 13px; font-weight: 700; color: var(--deep-grass); text-transform: uppercase; letter-spacing: 0.06em; }
+.card-title { margin: 4px 0 2px; font-size: 24px; line-height: 1.2; text-wrap: balance; }
+.card-sub { margin: 0 0 14px; color: #5a5548; text-wrap: balance; }
+.card-stats { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 14px; text-align: left; }
+.card-stats dt { font-weight: 700; }
+.card-stats dd { margin: 0; }
+.card-headstart {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(231, 184, 74, 0.3);
+  font-weight: 700;
+  text-wrap: balance;
+}
+.card-actions { display: flex; flex-direction: column; gap: 10px; }
+.card .btn { border: 2px solid var(--ink); background: #fff; color: var(--ink); }
+.card .btn.primary { background: var(--deep-grass); border-color: var(--ink); color: #fff; }

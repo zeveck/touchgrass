@@ -1,0 +1,23 @@
+f1 k1.5 g1.5 | p-fast: 15 (touched 100%) | p-average: 17 (touched 100%) | p-calm: 37 (touched 100%) | p-scribble: 16 (touched 97%) | d-fast: 16 (touched 100%) | d-average: 29 (touched 100%) | d-calm: 69 (touched 100%) | d-scribble: 29 (touched 83%)
+f2 k1.6 g1.5 | p-fast: 17 (touched 100%) | p-average: 19 (touched 100%) | p-calm: 45 (touched 100%) | p-scribble: 17 (touched 97%) | d-fast: 19 (touched 100%) | d-average: 33 (touched 100%) | d-calm: 82 (touched 100%) | d-scribble: 26 (touched 89%)
+f3 k1.7 g1.3 | p-fast: 19 (touched 100%) | p-average: 23 (touched 100%) | p-calm: 53 (touched 100%) | p-scribble: 23 (touched 94%) | d-fast: 22 (touched 100%) | d-average: 41 (touched 100%) | d-calm: 98 (touched 100%) | d-scribble: 31 (touched 96%)
+f4 k1.8 g1.3 | p-fast: 24 (touched 100%) | p-average: 30 (touched 100%) | p-calm: 63 (touched 100%) | p-scribble: 30 (touched 98%) | d-fast: 26 (touched 100%) | d-average: 44 (touched 100%) | d-calm: 108 (touched 100%) | d-scribble: 41 (touched 90%)
+f5 k1.9 g1.2 | p-fast: 21 (touched 100%) | p-average: 27 (touched 100%) | p-calm: 60 (touched 100%) | p-scribble: 26 (touched 99%) | d-fast: 26 (touched 100%) | d-average: 45 (touched 100%) | d-calm: 113 (touched 100%) | d-scribble: 36 (touched 90%)
+f6 k2 g1.1 | p-fast: 26 (touched 100%) | p-average: 32 (touched 100%) | p-calm: 54 (touched 100%) | p-scribble: 30 (touched 99%) | d-fast: 29 (touched 100%) | d-average: 42 (touched 100%) | d-calm: 97 (touched 100%) | d-scribble: 44 (touched 96%)
+f7 k2.2 g1 | p-fast: 33 (touched 100%) | p-average: 40 (touched 100%) | p-calm: 71 (touched 100%) | p-scribble: 38 (touched 100%) | d-fast: 37 (touched 100%) | d-average: 56 (touched 100%) | d-calm: 131 (touched 100%) | d-scribble: 57 (touched 97%)
+f8 k2.3 g1 | p-fast: 35 (touched 100%) | p-average: 50 (touched 100%) | p-calm: 66 (touched 100%) | p-scribble: 45 (touched 100%) | d-fast: 40 (touched 100%) | d-average: 53 (touched 100%) | d-calm: 115 (touched 100%) | d-scribble: 58 (touched 100%)
+f9 k2.4 g1 | p-fast: 46 (touched 92%) | p-average: 52 (touched 92%) | p-calm: 64 (touched 92%) | p-scribble: 42 (touched 100%) | d-fast: 42 (touched 92%) | d-average: 56 (touched 92%) | d-calm: 92 (touched 92%) | d-scribble: 61 (touched 100%)
+f10 k2.6 g0.95 | p-fast: 41 (touched 100%) | p-average: 56 (touched 100%) | p-calm: 90 (touched 100%) | p-scribble: 49 (touched 100%) | d-fast: 48 (touched 100%) | d-average: 71 (touched 100%) | d-calm: 164 (touched 100%) | d-scribble: 70 (touched 99%)
+f11 k2.7 g0.9 | p-fast: 59 (touched 98%) | p-average: 71 (touched 98%) | p-calm: 87 (touched 98%) | p-scribble: 57 (touched 100%) | d-fast: 60 (touched 98%) | d-average: 73 (touched 98%) | d-calm: 147 (touched 98%) | d-scribble: 78 (touched 99%)
+f12 k2.8 g0.9 | p-fast: 50 (touched 100%) | p-average: 56 (touched 100%) | p-calm: 81 (touched 100%) | p-scribble: 53 (touched 100%) | d-fast: 52 (touched 100%) | d-average: 67 (touched 100%) | d-calm: 130 (touched 100%) | d-scribble: 80 (touched 100%)
+f13 k3 g0.85 | p-fast: 58 (touched 100%) | p-average: 73 (touched 100%) | p-calm: 106 (touched 100%) | p-scribble: 65 (touched 100%) | d-fast: 67 (touched 100%) | d-average: 86 (touched 100%) | d-calm: 188 (touched 100%) | d-scribble: 85 (touched 99%)
+f14 k3.2 g0.85 | p-fast: 70 (touched 100%) | p-average: 81 (touched 100%) | p-calm: 106 (touched 100%) | p-scribble: 71 (touched 100%) | d-fast: 70 (touched 100%) | d-average: 88 (touched 100%) | d-calm: 184 (touched 100%) | d-scribble: 92 (touched 99%)
+f15 k3.5 g0.8 | p-fast: 79 (touched 100%) | p-average: 87 (touched 100%) | p-calm: 124 (touched 100%) | p-scribble: 82 (touched 100%) | d-fast: 84 (touched 100%) | d-average: 105 (touched 100%) | d-calm: 204 (touched 100%) | d-scribble: 100 (touched 100%)
+phonefast total 9.9 min
+phoneaverage total 11.9 min
+phonecalm total 18.4 min
+phonescribble total 10.7 min
+desktopfast total 10.6 min
+desktopaverage total 14.8 min
+desktopcalm total 32.0 min
+desktopscribble total 14.8 min

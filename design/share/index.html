@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Touch Grass Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* One visual world: the game's own sunlit palette, used for both themes on purpose. */
+  --paper: #fbf3df;      /* sky cream */
+  --ink: #2b2a26;
+  --grass: #2f6b34;      /* deep grass */
+  --meadow: #5f9e45;
+  --gold: #e7b84a;
+  --soil: #7a5a3a;
+  --rule: #e4d6b2;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  /* Layout: one reading column, wide figures break out of it; tables scroll on phones. */
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--body); font-size: 17px; line-height: 1.6; }
+main { max-width: 1040px; margin: 0 auto; padding: 0 20px 64px; }
+.col { max-width: 680px; }
+h1, h2, h3 { font-family: var(--display); color: var(--grass); text-wrap: balance; line-height: 1.15; }
+h1 { font-size: clamp(2.6rem, 7vw, 4.2rem); margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 1.9rem; margin: 56px 0 12px; padding-top: 20px; border-top: 2px solid var(--rule); }
+h3 { font-size: 1.25rem; margin: 28px 0 8px; }
+p, li { max-width: 68ch; }
+a { color: var(--grass); }
+a:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+header { padding: 40px 0 8px; }
+.tag { font-family: var(--display); font-style: italic; font-size: 1.35rem; color: var(--soil); margin: 6px 0 18px; }
+.lede { font-size: 1.15rem; }
+.note { background: #fff8e6; border-left: 4px solid var(--gold); padding: 12px 16px; border-radius: 0 8px 8px 0; }
+figure { margin: 24px 0; }
+figure img { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 2px 14px rgba(47,107,52,.18); }
+figcaption { font-size: .92rem; color: #5a5545; margin-top: 8px; max-width: 68ch; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.sprites { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.sprite { background: #f2e8c9; border-radius: 10px; padding: 12px; text-align: center; }
+.sprite img { width: 100%; max-width: 160px; height: auto; box-shadow: none; }
+.sprite span { display: block; font-size: .9rem; color: #5a5545; }
+.tablewrap { overflow-x: auto; margin: 16px 0; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--body); font-weight: 700; color: var(--grass); background: #f6ecd0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.time { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.morning { background: #dcefd2; color: #2f6b34; }
+.afternoon { background: #f6e2a6; color: #6b4c12; }
+.golden { background: #f3c9a4; color: #7a3d1c; }
+.changed { font-size: .78rem; font-weight: 700; color: #7a3d1c; background: #f3d9c6; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+ul.check { list-style: none; padding-left: 0; }
+ul.check li { padding-left: 1.6em; position: relative; margin: 4px 0; }
+ul.check li::before { content: ""; position: absolute; left: 0; top: .5em; width: .8em; height: .8em; border-radius: 50%; background: var(--meadow); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+.stat { background: #f2e8c9; border-radius: 10px; padding: 12px 14px; }
+.stat b { display: block; font-family: var(--display); font-size: 1.7rem; color: var(--grass); }
+footer { margin-top: 56px; font-size: .9rem; color: #5a5545; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Touch Grass</h1>
+  <p class="tag">Run your hand through the meadow.</p>
+  <div class="col">
+    <p class="lede">Sweep a finger or mouse through a sunlit field and the grass bends, flattens and turns gold under
+    your touch, then slowly grows back. Every stroke through standing grass gives energy. Fill the meter to its line
+    and the meadow blooms and opens the next field. On the way you meet the bugs who live there: grumpy bees, wasps
+    and ants that warn you before they nip, and friendly ladybugs, butterflies, caterpillars and snails you can pet
+    and collect in your Bug Garden. There's no timer you can fail and no game over.</p>
+    <p class="note">This is the reviewed design for finishing Rich Conlan's own project, <i>Touch Grass</i>. The core
+    of the game (sweeping, regrowth, energy, 15 shaped fields, five grass types, three moves, seven bugs, the
+    collection, scores, sharing) is theirs. This design keeps all of it and reworks the numbers, the look, the pacing
+    and the screens. Each change to one of their rules is marked <span class="changed">changed</span>. Comments are
+    welcome on anything here, before the art and the build begin.</p>
+  </div>
+  <figure>
+    <img src="img/frame-morning.jpg" alt="Mock gameplay frame: an L-shaped field of painted grass in a morning meadow, with a gold swept trail and a ladybug.">
+    <figcaption>Mock gameplay frame, put together from the first real game art: field 6, "The Garden Corner", in the
+    morning, with a swept gold trail and a ladybug.</figcaption>
+  </figure>
+</header>
+
+<section>
+<h2>The feeling</h2>
+<div class="col">
+  <p>The calm, tactile pleasure of running your hand through long grass. Unhurried, warm, never punishing,
+  quietly satisfying. A few minutes of it should leave you calmer than you started. The name is the joke, and the
+  game is the gentle answer to it.</p>
+  <p><b>Who and where.</b> Anyone wanting a few calm minutes: on a phone in a spare moment (one thumb, either
+  orientation), or on a computer with a mouse or trackpad. A field takes from about 15 seconds (the first) to about
+  2 minutes (the last). The whole meadow is about 15 to 25 minutes, with replays for scores, badges and bugs.</p>
+</div>
+</section>
+
+<section>
+<h2>How it plays</h2>
+<div class="col">
+  <h3>The stroke</h3>
+  <p>Press and drag. Standing grass under your finger bends away from the motion, lies flat, flashes gold and puffs
+  gold motes that drift into the energy meter, with a soft rustle pitched by how tall the grass was. Behind you, the
+  grass slowly grows back and pops up again when it's worth sweeping. The stroke is the heart of the game: it must
+  feel lush and immediate, with no lag and no skipped grass on fast swipes.</p>
+  <h3>A field</h3>
+  <p>Sweep the whole field once, then go round again, sweeping whatever has stood back up. The first field takes
+  about one and a half rounds, the last about three and a half. Steer around grumpy bugs, pet the friendly ones,
+  and use a move when it does a job sweeping can't. Fill the meter to its line and the field blooms.</p>
+  <h3>The grass rules, in plain words</h3>
+  <ul>
+    <li><b>Standing grass pays; short grass just bends.</b> A tall tuft gives more energy than a shorter one. Grass
+    that's still low after a sweep only sways under your finger: it gives nothing, but it isn't set back either,
+    so sweeping quickly never hurts. <span class="changed">changed</span> The original plan's grass grew back in
+    a second and a half, so scrubbing one spot won and the gold trail vanished at once.</li>
+    <li><b>Gold shows where you've been.</b> Swept grass turns gold and fades back toward green as it grows, but
+    keeps a touch of gold. Untouched grass stays deep green, so you can always see what's left.</li>
+    <li><b>Faster strokes give a little more</b>, up to +20% for a quick swipe. <span class="changed">changed</span>
+    The plan allowed +50%, which rewarded haste in a calm game.</li>
+    <li><b>Five grass types.</b> Default; <b>tall</b> (slow to grow back, worth more); <b>short</b> (stands up
+    fast, worth less); <b>flowered</b> (a little more, petals fly); and <b>stiff</b>, which the first stroke only
+    loosens and a fresh stroke flattens. Loosened stiff grass has its own look, so you can see what still needs a
+    second stroke.</li>
+  </ul>
+  <h3>Winning, and the head start</h3>
+  <ul>
+    <li><b>Win a field</b> by filling the energy meter to its line. <span class="changed">changed</span> The plan
+    also let flattening every blade win. With grass growing back slowly, you touch every blade long before the
+    meter fills, so that would have made the meter pointless.</li>
+    <li><b>Touch every blade</b> and a leaf badge beside the meter turns gold. Near the end it shows how many are
+    left, and the last untouched tufts shimmer so they're easy to find on a phone.</li>
+    <li><b>Do both</b> and the next field starts 15% full: a head start. <span class="changed">changed</span> This
+    is the plan's carry-over, sized so it can't snowball.</li>
+    <li><b>You can't lose.</b> A bite takes a little energy, never below zero, and the field carries on.</li>
+  </ul>
+  <h3>Three moves, each with a job</h3>
+  <p>The plan's three moves stay. A move never adds to the meter overall: it sweeps the grass it covers and costs
+  about what that grass is worth, so it's for doing what your hand can't. It's paid only when it fires.
+  <span class="changed">changed</span> At the plan's flat prices every move earned more than it cost, and Full
+  Clear won any field in one tap.</p>
+</div>
+<div class="tablewrap"><table>
+  <thead><tr><th>Move</th><th>Arrives</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><b>Ring</b></td><td>Field 6, with the first ant</td><td>Sweeps a circle and <b>calms every grumpy bug in it</b>, so you can clear grass beside a bug without being nipped.</td></tr>
+    <tr><td><b>Line</b></td><td>Field 9, with stiff grass</td><td>Sweeps a wide corridor along your drag and <b>flattens stiff grass in one go</b>. Reaches far edges in one stroke.</td></tr>
+    <tr><td><b>Full Clear</b></td><td>Field 11</td><td><b>Touches every blade at once</b>: a gust rolls across the meadow, completing the whole-field badge on a big field.</td></tr>
+  </tbody>
+</table></div>
+<div class="col">
+  <h3>The bugs</h3>
+  <p>All seven of the plan's bugs, with its wander and spawn rules. They're sized in screen pixels, so they're
+  never specks on a phone. <span class="changed">changed</span> On the largest fields a grid cell is only 10 px
+  on a phone.</p>
+  <ul>
+    <li><b>Grumpy bugs</b> (ant, bee, wasp) puff up, glow red and buzz when a sweeping finger comes close. The red
+    ring is drawn big enough to show around your thumb. You always get at least a second and a half of warning.
+    Move away and they calm down; stay and they nip, then scurry off.</li>
+    <li><b>Friendly bugs</b> (ladybug, butterfly, caterpillar, snail) can be tapped to pet them: they hop, hearts
+    float up, and they join your Bug Garden. Sweeps never hurt them; a stroke just nudges them aside. Petting gives
+    a little energy once per bug per field. <span class="changed">changed</span> Tapping one bug over and over
+    used to give unlimited energy.</li>
+  </ul>
+</div>
+<div class="sprites">
+  <div class="sprite"><img src="img/ladybug.png" alt="Ladybug sprite"><span>Ladybug, the first friend and the style anchor</span></div>
+  <div class="sprite"><img src="img/bee.png" alt="Bee sprite"><span>Bee, a grumpy one</span></div>
+  <div class="sprite"><img src="img/tuft-default.png" alt="Default grass tuft"><span>Default grass tuft</span></div>
+  <div class="sprite"><img src="img/tuft-stiff.png" alt="Stiff grass tuft"><span>Stiff grass tuft</span></div>
+</div>
+</section>
+
+<section>
+<h2>Fifteen fields, one summer day</h2>
+<div class="col">
+  <p>The plan's 15 field sizes and shapes are kept, and grouped into three times of day, each with its own painted
+  surroundings and music. <span class="changed">changed</span> This gives the run a visible journey and an
+  ending. Each new thing gets one short hint card the first time it appears.</p>
+</div>
+<div class="tablewrap"><table>
+  <thead><tr><th>#</th><th>Field</th><th>Time</th><th>Shape</th><th>What's new</th></tr></thead>
+  <tbody>
+    <tr><td class="n">1</td><td>The Back Lawn</td><td><span class="time morning">Morning</span></td><td class="n">12×12 square</td><td>Sweeping and the meter. A ghost hand shows a stroke until you make your first.</td></tr>
+    <tr><td class="n">2</td><td>Dew Patch</td><td><span class="time morning">Morning</span></td><td class="n">13×13 square</td><td>Regrowth: it opens with a stripe already mown and growing back.</td></tr>
+    <tr><td class="n">3</td><td>Clover Corner</td><td><span class="time morning">Morning</span></td><td class="n">15×15 square</td><td>Short grass, and the first ladybug to pet. The whole-field badge.</td></tr>
+    <tr><td class="n">4</td><td>Long Meadow</td><td><span class="time morning">Morning</span></td><td class="n">17×19 rectangle</td><td>Tall grass.</td></tr>
+    <tr><td class="n">5</td><td>Buttercup Field</td><td><span class="time morning">Morning</span></td><td class="n">19×19 square</td><td>Flowered grass. The light warms.</td></tr>
+    <tr><td class="n">6</td><td>The Garden Corner</td><td><span class="time afternoon">Afternoon</span></td><td class="n">21×21 L-shape</td><td>First odd shape, the first ant, and the Ring.</td></tr>
+    <tr><td class="n">7</td><td>Picnic Lawn</td><td><span class="time afternoon">Afternoon</span></td><td class="n">23×23 square</td><td>A calm breather, and the first snail.</td></tr>
+    <tr><td class="n">8</td><td>Butterfly Bend</td><td><span class="time afternoon">Afternoon</span></td><td class="n">25×25 L-shape</td><td>The butterfly.</td></tr>
+    <tr><td class="n">9</td><td>Crossroads</td><td><span class="time afternoon">Afternoon</span></td><td class="n">27×27 cross</td><td>Stiff grass, and the Line.</td></tr>
+    <tr><td class="n">10</td><td>Orchard Grass</td><td><span class="time afternoon">Afternoon</span></td><td class="n">29×29 square</td><td>The bee. Every grass type together.</td></tr>
+    <tr><td class="n">11</td><td>Hedge Garden</td><td><span class="time golden">Golden hour</span></td><td class="n">31×31 L-shape</td><td>A hedge of tall grass, a grumpy corner, and Full Clear.</td></tr>
+    <tr><td class="n">12</td><td>Five-Stone Lawn</td><td><span class="time golden">Golden hour</span></td><td class="n">33×33 pentagon</td><td>The wasp: quick and wide-roaming.</td></tr>
+    <tr><td class="n">13</td><td>The Big Green</td><td><span class="time golden">Golden hour</span></td><td class="n">34×34 square</td><td>A half-mown lawn: a moving patchwork of stripes.</td></tr>
+    <tr><td class="n">14</td><td>Two Islands</td><td><span class="time golden">Golden hour</span></td><td class="n">35×35 two islands</td><td>A gap between two fields; the caterpillar.</td></tr>
+    <tr><td class="n">15</td><td>Sunset Meadow</td><td><span class="time golden">Golden hour</span></td><td class="n">36×36 octagon</td><td>The finale: every bug and grass type. Winning plays the ending.</td></tr>
+  </tbody>
+</table></div>
+<div class="col">
+  <p>The difficulty comes from size, grass mix and bugs, never a clock. Every number was checked with a pacing
+  simulator at phone and desktop sizes, for calm, average, fast and scribbling players. Fast and scribbling
+  players are never slower than average ones, and calm players always win too.</p>
+</div>
+</section>
+
+<section>
+<h2>Screens</h2>
+<div class="col">
+  <ul>
+    <li><b>Title:</b> a painted morning meadow with real grass along the bottom that bends as your pointer passes.
+    Play goes straight to your next field.</li>
+    <li><b>Meadow map</b> <span class="changed">new</span>: the 15 fields as patches along a winding path, morning
+    to sunset. Replay any finished field for a better score.</li>
+    <li><b>Playing:</b> a slim strip with the field name, the energy meter and its little opening flower, the leaf
+    badge, pause and sound. The moves sit where your thumb rests.</li>
+    <li><b>Field complete:</b> the field blooms with flowers and petals, then a card shows your score, your best
+    and any head start.</li>
+    <li><b>Bug Garden</b> <span class="changed">changed</span>: the plan's Insect Farm becomes a little painted
+    garden under a bell jar where the friends you've met wander about. Tap one for its card and friendship hearts.</li>
+    <li><b>The ending</b> <span class="changed">new</span>: after field 15 the light fades to dusk, fireflies rise,
+    and every friend you've met comes out onto the field. "You touched all the grass. Go touch some real grass."</li>
+    <li><b>Settings:</b> music and sound volume, haptics, reduced motion, an optional "sweep by hovering" for
+    trackpads, your name for challenges, credits, and clear data with an in-game confirm.</li>
+    <li><b>Sharing and challenges</b> (kept): a 1200×630 scorecard, and challenge links that say "Sam scored 1,240
+    on Sunset Meadow. Beat them?". A friend who hasn't reached that field yet plays it once as a guest.</li>
+  </ul>
+</div>
+</section>
+
+<section>
+<h2>The look</h2>
+<div class="col">
+  <p>Soft storybook watercolour in a warm meadow palette of fresh green, buttercup yellow and honey gold, with gentle
+  hand-inked outlines. <span class="changed">changed</span> This replaces the plan's flat procedural look and
+  system-font screens. The grass is real painted tufts that the game bends, flattens and tints gold in code. The bugs
+  are top-down sprites with bold outlines so they read on green and on gold. The painted surroundings frame each
+  field, and the field has a clear edge, so it's always obvious where the grass you can touch begins and ends.</p>
+</div>
+<div class="pair">
+  <figure><img src="img/morning.jpg" alt="Painted morning meadow surroundings, framed by hedges and flowers around a quiet sandy centre."><figcaption>Morning surroundings (fields 1 to 5). This painting sets the look for every scene.</figcaption></figure>
+  <figure><img src="img/golden.jpg" alt="The same meadow at golden hour, in warm amber light."><figcaption>Golden hour (fields 11 to 15). Green and gold stay clearly apart under every light.</figcaption></figure>
+</div>
+<figure>
+  <img src="img/frame-golden.jpg" alt="Mock gameplay frame: a large golden-hour field with swept gold patches and a bee inside a red warning ring.">
+  <figcaption>Mock gameplay frame at golden hour: a bigger field, and a bee glowing red as a finger comes near.</figcaption>
+</figure>
+</section>
+
+<section>
+<h2>The sound</h2>
+<div class="col">
+  <ul>
+    <li><b>Music:</b> four gentle instrumental tracks, all in one key: a warm acoustic theme for the title and map,
+    then airy morning, fuller afternoon and wistful golden-hour pieces.</li>
+    <li><b>The meadow:</b> a soft loop of breeze and distant birds under the music, and crickets at dusk for the
+    ending.</li>
+    <li><b>Every action has a sound:</b> a rustle that follows your finger, a twang for stiff grass, a buzz and a
+    soft "bonk" for grumpy bugs, a chirp for each friend, and a whoomp, swish and gust for the moves. The milestone
+    bells and the bloom arpeggio are played by the game itself, always in tune with the music.</li>
+  </ul>
+</div>
+</section>
+
+<section>
+<h2>Size of the job</h2>
+<div class="stats">
+  <div class="stat"><b>15</b>fields</div>
+  <div class="stat"><b>7</b>bugs</div>
+  <div class="stat"><b>3</b>moves</div>
+  <div class="stat"><b>10</b>screens</div>
+  <div class="stat"><b>~35</b>pieces of art</div>
+  <div class="stat"><b>4</b>songs</div>
+  <div class="stat"><b>~16</b>sounds</div>
+</div>
+<div class="col">
+  <p><b>Hardest parts:</b> grass that looks lush and runs smoothly with over a thousand tufts on a phone; making
+  the stroke feel right before anything else is built; bugs that read clearly at every size; tuning all 15 fields
+  with a solver that plays every one of them; and a layout that works in both phone orientations.</p>
+  <p><b>Done means:</b> every field can be finished and the game can be won; it starts cleanly on desktop and on
+  phones in both orientations; the game can always carry on, even when played wrongly; every control works by
+  mouse, keyboard and touch; music, sound and saving work; it installs as an app and plays offline; and the
+  project's own tests pass.</p>
+</div>
+</section>
+
+<footer>
+  <p>Touch Grass is Rich Conlan's game, finished with gamegen. This page shows the design after two rounds of
+  review, before the art and the build.</p>
+</footer>
+</main>
+</body>
+</html>

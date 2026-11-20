@@ -11,3 +11,8 @@ node_modules/
 test-results/
 playwright-report/
 .test-results.txt
+# gamegen working files and generator history
+.gamegen/
+.anim8gen/
+assets/anim8gen/
+.*-history.jsonl
