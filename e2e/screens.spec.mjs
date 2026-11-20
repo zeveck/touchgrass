@@ -83,10 +83,22 @@ test('title: with progress, Play goes to the next unfinished field, and shows th
   const errors = watchErrors(page);
   await seed(page, progressTo(4));
   await title(page);
-  await expect(page.getByTestId('title-best')).toHaveText('Best: 550');
+  await expect(page.getByTestId('title-best')).toHaveText('Best field: 550');
   await expect(page.getByTestId('btn-continue')).toContainText('Field 4: Long Meadow');
   await press(page, 'btn-continue');
   await expect.poll(() => page.evaluate(() => window.__game.info().field)).toBe(4);
+  expect(errors).toEqual([]);
+});
+
+test('title: once every field is done, it shows the total (the ending\'s number), not one field\'s best', async ({ page }) => {
+  const errors = watchErrors(page);
+  const save = progressTo(16);
+  save.progress.unlocked = 15;
+  await seed(page, save);
+  await title(page);
+  // Fields 1-15 at 100k + 250: 12,000 + 3,750.
+  await expect(page.getByTestId('title-best')).toHaveText('Total score: 15,750');
+  await expect(page.getByTestId('btn-continue')).toContainText('Every field is in bloom');
   expect(errors).toEqual([]);
 });
 

@@ -49,6 +49,8 @@ export const NAV = Object.freeze({
     'btn-restart': T('playing'),
     'btn-howto': T(null),
     'btn-howto-back': T(null),
+    'btn-howto-prev': T(null),
+    'btn-howto-next': T(null),
     'btn-pause-settings': T('settings'),
     'btn-pause-map': T('map'),
     'btn-pause-title': T('title'),

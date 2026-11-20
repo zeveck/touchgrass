@@ -59,7 +59,7 @@ export function renderGarden(root) {
   const met = FRIENDS.filter((sp) => g[sp]);
   const title = el('div', 'bar-heading');
   title.append(el('h1', 'screen-title', 'Bug Garden'));
-  const count = el('p', 'screen-sub', met.length ? `${met.length} of ${FRIENDS.length} friends met` : 'Pet a friendly bug in a field to meet it');
+  const count = el('p', 'screen-sub', met.length ? `${met.length} of ${FRIENDS.length} friends met` : 'Pet a friendly bug to meet it');
   count.setAttribute('data-testid', 'garden-count');
   title.append(count);
   bar.append(back, title, el('div', 'bar-right'));
@@ -120,6 +120,7 @@ export function renderGarden(root) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const reduced = reducedMotion();
+    separate(bugs, box, dt);
     for (const f of bugs) step(f, dt, reduced, box);
   };
   raf = requestAnimationFrame(frame);
@@ -129,6 +130,35 @@ export function renderGarden(root) {
     window.removeEventListener('resize', lay);
     closeModal(true);
   };
+}
+
+// Keep the met friends apart: two closer than 0.85 sprite widths are pushed
+// apart (gently, so it looks like stepping aside) and turn away from each
+// other. Pure on the friends' unit-disc positions, so it's unit-tested.
+export const APART = 0.85;
+export function separate(list, box, dt) {
+  const met = list.filter((f) => f.met);
+  const want = APART * box.size;
+  for (let a = 0; a < met.length; a++) {
+    for (let b = a + 1; b < met.length; b++) {
+      const A = met[a], B = met[b];
+      let dx = (B.x - A.x) * box.rx, dy = (B.y - A.y) * box.ry;
+      let d = Math.hypot(dx, dy);
+      if (d >= want) continue;
+      if (d < 1e-3) { dx = 1; dy = 0; d = 1; }
+      // Push each half the overlap (at most 120 px/s), in px, back to units.
+      const push = Math.min((want - d) / 2, 120 * dt + (want - d) * 0.25);
+      const ux = dx / d, uy = dy / d;
+      if (!A.held) { A.x -= (ux * push) / box.rx; A.y -= (uy * push) / box.ry; A.tgt = Math.atan2(-uy, -ux); }
+      if (!B.held) { B.x += (ux * push) / box.rx; B.y += (uy * push) / box.ry; B.tgt = Math.atan2(uy, ux); }
+    }
+  }
+  // Still inside the jar, in front of the silhouettes.
+  for (const f of met) {
+    const r = Math.hypot(f.x, f.y);
+    if (r > 0.9) { f.x *= 0.9 / r; f.y *= 0.9 / r; }
+    f.y = Math.max(FRONT_MIN_Y - 0.08, f.y);
+  }
 }
 
 function step(f, dt, reduced, box) {
@@ -207,7 +237,7 @@ function showFriend(sp, entry) {
   } else {
     card.append(el('p', 'card-sub', 'Not met yet'));
     const f = firstFieldOf(sp);
-    if (f) card.append(el('p', 'friend-note', `One lives in ${getLevel(f).name} (field\u00a0${f}). Tap it there to say hello.`));
+    if (f) card.append(el('p', 'friend-note', `One lives in ${getLevel(f).name} (field\u00a0${f}). ${typeof matchMedia === 'function' && !matchMedia('(pointer: coarse)').matches ? 'Click' : 'Tap'} it there to say hello.`));
   }
   const row = el('div', 'card-actions');
   row.append(button('Close', 'btn-friend-close', () => closeModal(), { primary: true }));

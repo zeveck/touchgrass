@@ -50,7 +50,7 @@
 - [x] Share design: page https://claude.ai/artifact/NdpRQDpGNQPA5vzhgZENoE (private until shared; slug af33e960-0e6d-46be-acaa-f471b827d155); 5 mock pictures + 2 composited frames, $0.83, all kept as final art
 - [x] Stop (`--plan-only`): next is `/gamegen --continue` (read the shared page's comments first)
 - [x] 4 Art, animation and audio: every asset on the list made and checked; ~$10.26 of $30 so far (design/ASSETS.md)
-- [ ] 5 Build: M1 core (dd94adb), M2 art+sound (23015db), M3 bugs/moves/hints (3b2e4e2) done. M4 whole game (title, map, garden, settings, score/save, share/challenge, ending, PWA, feedback) IN PROGRESS (.gamegen/progress/build-m4.md). Then M5 polish. Art sheet after publishing. Open: f15 phone fps ~25 at 4x throttle (headless software render); WebKit ant e2e flaked once under machine load ~10.
+- [ ] 5 Build: M1 dd94adb, M2 23015db, M3 3b2e4e2, M4 4f2749c (+c84996f screenshots) done. M5 polish + full play-test IN PROGRESS (.gamegen/progress/build-m5.md). Art sheet after publishing.
 - [ ] 6 Play-test
 - [ ] 7 Final review
 - [ ] 8 Polish pass

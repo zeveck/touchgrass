@@ -62,6 +62,22 @@ export function hintFor(n, seen) {
   return h;
 }
 
+// The line under a hint card's button: what dismisses it with this input
+// ('touch' or 'mouse'; keyboard players can press Enter, Space or Esc).
+export function hintFoot(input) {
+  return input === 'touch' ? 'Tap anywhere to play' : 'Click anywhere or press Enter to play';
+}
+
+// The hints are written for a finger; with a mouse they say click, and
+// the pointer instead of your finger.
+export function forInput(text, input) {
+  if (input === 'touch') return text;
+  return text
+    .replace(/\bTap\b/g, 'Click').replace(/\btap\b/g, 'click')
+    .replace(/your finger comes close/g, 'your pointer comes close')
+    .replace(/lift your finger/g, 'let go');
+}
+
 // "How to play": every hint seen so far, in field order.
 export function hintsSeenList(seen) {
   const s = new Set(seen);

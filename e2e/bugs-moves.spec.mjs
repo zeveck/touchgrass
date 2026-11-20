@@ -44,6 +44,9 @@ test('hint: the card shows when the field opens, a press dismisses it without sw
   const card = page.getByTestId('card-hint');
   await expect(card).toBeVisible();
   await expect(card).toContainText('grumpy ant');
+  // Its foot names this device's action: a tap on a phone, a click (or Enter) with a mouse.
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+  await expect(card.locator('.card-foot')).toHaveText(coarse ? 'Tap anywhere to play' : 'Click anywhere or press Enter to play');
   // The field is paused under it.
   const t0 = await page.evaluate(() => window.__game.info().time);
   await page.waitForTimeout(300);
@@ -71,6 +74,50 @@ test('hint: the card shows when the field opens, a press dismisses it without sw
   await openField(page, 6);
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.__game.state)).toBe('playing');
+  expect(errors).toEqual([]);
+});
+
+test('how to play: with every hint seen it fits without scrolling, and pages with Previous / Next', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto('/');
+  await page.evaluate(() => {
+    const ids = ['sweep', 'regrow', 'short-ladybug', 'tall', 'flowered', 'ant-ring', 'snail', 'butterfly', 'stiff-line',
+      'bee', 'hedge-clear', 'wasp', 'stripes', 'caterpillar', 'finale'];
+    localStorage.setItem('touchgrass.v1', JSON.stringify({ version: 1, settings: {}, progress: { unlocked: 15, fields: {} },
+      allTimeBest: 0, headStart: null, hints: Object.fromEntries(ids.map((i) => [i, true])) }));
+  });
+  await openField(page, 15);
+  // At the project's own size, then on a phone held sideways (the shortest card space).
+  for (const size of [null, { width: 844, height: 390 }]) {
+    if (size) { await page.setViewportSize(size); await page.waitForTimeout(300); }
+    await page.keyboard.press('p');
+    await expect(page.getByTestId('card-pause')).toBeVisible();
+    await pressButton(page, 'btn-howto');
+    const card = page.getByTestId('card-howto');
+    await expect(card).toBeVisible();
+    const seen = new Set();
+    const fits = () => card.evaluate((c) => { const ul = c.querySelector('.howto-list'); return c.scrollHeight <= c.clientHeight + 1 && ul.scrollHeight <= ul.clientHeight + 1; });
+    expect(await fits()).toBe(true);
+    const label = await page.getByTestId('howto-page').textContent();
+    const pages = (await page.getByTestId('howto-page').isVisible()) ? Number(label.split(' of ')[1]) : 1;
+    for (let k = 1; k <= pages; k++) {
+      if (pages > 1) await expect(page.getByTestId('howto-page')).toHaveText(`${k} of ${pages}`);
+      expect(await fits()).toBe(true);
+      for (const t of await page.locator('.howto-text strong').allTextContents()) seen.add(t);
+      if (k < pages) await pressButton(page, 'btn-howto-next');
+    }
+    // Every hint was on some page.
+    expect(seen.size).toBe(15);
+    if (pages > 1) {
+      await expect(page.getByTestId('btn-howto-next')).toBeDisabled();
+      await pressButton(page, 'btn-howto-prev');
+      await expect(page.getByTestId('howto-page')).toHaveText(`${pages - 1} of ${pages}`);
+    }
+    await pressButton(page, 'btn-howto-back');
+    await expect(page.getByTestId('card-pause')).toBeVisible();
+    await page.keyboard.press('p');
+    await expect.poll(() => page.evaluate(() => window.__game.state)).toBe('playing');
+  }
   expect(errors).toEqual([]);
 });
 

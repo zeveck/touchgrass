@@ -13,10 +13,12 @@ import { mulberry32, fieldSeed } from './rng.mjs';
 // Speeds in CSS px/s (the plan's cells/s x 30). wander: chance per second of
 // picking a new heading. idle: chance per second of stopping for a while.
 // chirp: the pet chirp's playback rate (snail low and slow, butterfly high).
+// scale: drawn larger than the base size (the biters' art is thin and leggy,
+// so they'd read smaller than the round friends at the same size).
 export const SPECIES = Object.freeze({
-  bee: Object.freeze({ id: 'bee', name: 'Bee', hostile: true, speed: 21, wander: 0.85, idle: 0.08 }),
-  wasp: Object.freeze({ id: 'wasp', name: 'Wasp', hostile: true, speed: 33, wander: 0.9, idle: 0.05 }),
-  ant: Object.freeze({ id: 'ant', name: 'Ant', hostile: true, speed: 15, wander: 0.8, idle: 0.12 }),
+  bee: Object.freeze({ id: 'bee', name: 'Bee', hostile: true, speed: 21, wander: 0.85, idle: 0.08, scale: 1.1 }),
+  wasp: Object.freeze({ id: 'wasp', name: 'Wasp', hostile: true, speed: 33, wander: 0.9, idle: 0.05, scale: 1.1 }),
+  ant: Object.freeze({ id: 'ant', name: 'Ant', hostile: true, speed: 15, wander: 0.8, idle: 0.12, scale: 1.2 }),
   ladybug: Object.freeze({ id: 'ladybug', name: 'Ladybug', hostile: false, speed: 9, wander: 0.7, idle: 0.15, chirp: 1.0 }),
   butterfly: Object.freeze({ id: 'butterfly', name: 'Butterfly', hostile: false, speed: 24, wander: 0.95, idle: 0.22, chirp: 1.4 }),
   caterpillar: Object.freeze({ id: 'caterpillar', name: 'Caterpillar', hostile: false, speed: 6, wander: 0.6, idle: 0.1, chirp: 0.8, long: 1.4 }),
@@ -54,9 +56,14 @@ export const PET_FRAC = 0.02;        // a first pet gives 2% of the line...
 export const PET_SCORE = 25;         // ...and 25 score, once per bug per field
 export const UNDER_FRAC = 0.35;      // a cell is under a bug within 0.35 x its drawn size
 
-// Drawn size: clamp(1.8 cells, 32 px, 64 px). The caterpillar is 1.4x longer.
-export function bugSizePx(cellPx) {
-  return Math.max(32, Math.min(64, 1.8 * cellPx));
+// Drawn size: clamp(2 cells, 36 px, 72 px), times the species' scale (ant
+// 1.2, bee and wasp 1.1). The caterpillar is 1.4x longer. Without a species,
+// the base size (what the sim uses for margins and the cells under a bug).
+export const BUG_MIN_PX = 36;
+export const BUG_MAX_PX = 72;
+export function bugSizePx(cellPx, sp = null) {
+  const base = Math.max(BUG_MIN_PX, Math.min(BUG_MAX_PX, 2 * cellPx));
+  return sp && SPECIES[sp] && SPECIES[sp].scale ? base * SPECIES[sp].scale : base;
 }
 // Anger radius (hostiles): max(1.5 cells, 40 px), bug centre to a sweeping pointer.
 export function angerRadiusPx(cellPx) {
@@ -68,7 +75,7 @@ export function warnRingPx(cellPx) {
 }
 // Pet area: a circle of max(24 px, half the drawn size + 6 px).
 export function petRadiusPx(cellPx, species) {
-  const s = bugSizePx(cellPx) * (SPECIES[species].long ? 1.2 : 1);
+  const s = bugSizePx(cellPx, species) * (SPECIES[species].long ? 1.2 : 1);
   return Math.max(24, s / 2 + 6);
 }
 

@@ -18,7 +18,7 @@
 
 import { World, STEP } from './world.mjs';
 import { computeLayout, LAYOUTS } from './layout.mjs';
-import { getLevel } from './levels.mjs';
+import { getLevel, shapeBounds } from './levels.mjs';
 import { mulberry32 } from './rng.mjs';
 import { angerRadiusPx } from './insects.mjs';
 
@@ -271,7 +271,7 @@ export class Autopilot {
 export function runField(n, layoutName = 'phone', profileName = 'average', opts = {}) {
   const L = LAYOUTS[layoutName];
   const spec = getLevel(n);
-  const layout = computeLayout(L.vw, L.vh, spec.w, spec.h);
+  const layout = computeLayout(L.vw, L.vh, spec.w, spec.h, {}, shapeBounds(spec));
   const world = new World(n, layout, {
     headStart: !!opts.headStart, collectFx: false, seed: opts.seed, bugs: opts.bugs !== false,
   });

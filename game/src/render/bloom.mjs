@@ -2,9 +2,10 @@
 // ripple runs out from the last touch, every tuft springs up as it passes,
 // buttercups, daisies and clover pop open across the field, and petals swirl.
 // With reduced motion: no ripple ring, no swirl, no bounce; the flowers simply
-// appear. Render-only: the sim isn't touched.
+// appear, and the field glows warm once. Render-only: the sim isn't touched.
 
 import { mulberry32 } from '../sim/rng.mjs';
+import { polyPath } from './edge.mjs';
 
 const RIPPLE_S = 1.1;     // time for the ripple to cross the field
 
@@ -13,6 +14,7 @@ export class Bloom {
   constructor(world, layout, origin, { flowers = [], petal = null, reduced = false } = {}) {
     const g = world.grid;
     this.layout = layout;
+    this.polygons = world.spec.polygons;
     this.reduced = reduced;
     this.t = 0;
     this.ox = (origin.x - layout.field.x) / layout.cell;   // cells
@@ -69,19 +71,55 @@ export class Bloom {
     const cell = L.cell;
     const fx = L.field.x, fy = L.field.y;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // The ripple ring.
-    if (!this.reduced && this.t < RIPPLE_S + 0.3) {
-      const r = this.radius * cell;
-      const a = Math.max(0, 1 - this.t / (RIPPLE_S + 0.3));
+    // The ripple: a warm wash of light floods the field behind a bright
+    // ring (cream core, gold glow, a thin dark rim so it reads on bright
+    // morning grass), with a second, softer ring trailing it. With reduced
+    // motion: no ring; the field glows warm once and fades.
+    const ox = fx + this.ox * cell, oy = fy + this.oy * cell;
+    const end = RIPPLE_S + 0.5;
+    if (this.t < end + 0.6) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(fx, fy, L.field.w, L.field.h);
+      polyPath(ctx, this.polygons, fx, fy, cell);
       ctx.clip();
-      ctx.lineWidth = Math.max(6, cell * 0.8);
-      ctx.strokeStyle = `rgba(255, 240, 180, ${0.45 * a})`;
-      ctx.beginPath();
-      ctx.arc(fx + this.ox * cell, fy + this.oy * cell, r, 0, Math.PI * 2);
-      ctx.stroke();
+      if (this.reduced) {
+        const a = this.t < 0.9 ? 0.26 : Math.max(0, 0.26 * (1 - (this.t - 0.9) / 0.9));
+        if (a > 0) {
+          ctx.fillStyle = `rgba(255, 226, 140, ${a})`;
+          ctx.fillRect(fx, fy, L.field.w, L.field.h);
+        }
+      } else {
+        const r = this.radius * cell;
+        const a = Math.max(0, 1 - this.t / end);
+        // The wash: brightest just inside the ring, fading toward the origin
+        // and out over time.
+        const wash = Math.max(0, Math.min(1, 1.25 - this.t / (end + 0.6)));
+        if (r > 2 && wash > 0) {
+          const gr = ctx.createRadialGradient(ox, oy, Math.max(0, r * 0.15), ox, oy, r);
+          gr.addColorStop(0, `rgba(255, 236, 160, ${0.10 * wash})`);
+          gr.addColorStop(0.8, `rgba(255, 228, 130, ${0.24 * wash})`);
+          gr.addColorStop(1, `rgba(255, 244, 190, ${0.38 * wash})`);
+          ctx.fillStyle = gr;
+          ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
+        }
+        if (a > 0 && this.t < end) {
+          const lw = Math.max(10, cell * 1.1);
+          ctx.lineWidth = lw + 8;
+          ctx.strokeStyle = `rgba(255, 200, 70, ${0.35 * a})`;
+          ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineWidth = lw;
+          ctx.strokeStyle = `rgba(255, 250, 220, ${0.9 * a})`;
+          ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = `rgba(120, 80, 20, ${0.45 * a})`;
+          ctx.beginPath(); ctx.arc(ox, oy, r + lw / 2 + 1, 0, Math.PI * 2); ctx.stroke();
+          const r2 = r * 0.72;
+          if (r2 > 4) {
+            ctx.lineWidth = lw * 0.5;
+            ctx.strokeStyle = `rgba(255, 246, 200, ${0.5 * a})`;
+            ctx.beginPath(); ctx.arc(ox, oy, r2, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+      }
       ctx.restore();
     }
     // Flowers pop open as the ripple reaches them.

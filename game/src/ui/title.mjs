@@ -1,7 +1,8 @@
 // src/ui/title.mjs -- the title screen (GAME_DESIGN.md "Screens", Title).
 //
 // The painted title scene (by orientation), the "Touch Grass" logo in
-// Fraunces, "Best: N" once there's a score, and the buttons: Play (the next
+// Fraunces, "Best field: N" once there's a score ("Total score: N" once
+// every field is done), and the buttons: Play (the next
 // unfinished field; field 1 the first time; the map once all are done), Map,
 // Bug Garden, a settings cog and a speaker. Grass along the bottom edge bends
 // as the pointer passes (a toy before you start) and the ladybug wanders.
@@ -9,7 +10,7 @@
 // progress, `btn-continue` after; the Bug Garden keeps `btn-farm`.
 
 import { go } from '../nav.mjs';
-import { readSave, hasProgress, nextUnfinished } from '../storage.mjs';
+import { readSave, hasProgress, nextUnfinished, totalScore, allDone } from '../storage.mjs';
 import { getLevel } from '../sim/levels.mjs';
 import { fmtScore } from '../sim/score.mjs';
 import { reducedMotion } from '../prefs.mjs';
@@ -47,8 +48,10 @@ export function renderTitle(root, app) {
   const top = el('div', 'title-top');
   const heading = el('h1', 'title-logo', 'Touch Grass');
   top.append(heading);
+  // Before every field is done: the best single field ("Best field"). Once
+  // all are done: the total, the same number the ending shows.
   if (s.allTimeBest > 0) {
-    const best = el('p', 'best', `Best: ${fmtScore(s.allTimeBest)}`);
+    const best = el('p', 'best', allDone(s) ? `Total score: ${fmtScore(totalScore(s))}` : `Best field: ${fmtScore(s.allTimeBest)}`);
     best.setAttribute('data-testid', 'title-best');
     top.append(best);
   }

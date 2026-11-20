@@ -16,7 +16,7 @@ const SKY = {
   golden: ['#f8e2bf', '#ecc995', '#d7b17a'],
 };
 
-function polyPath(ctx, polygons, ox, oy, cell) {
+export function polyPath(ctx, polygons, ox, oy, cell) {
   ctx.beginPath();
   for (const poly of polygons) {
     poly.forEach(([x, y], j) => {
@@ -54,7 +54,7 @@ function edgePoints(polygons, ox, oy, cell, step) {
 }
 
 export function drawStatic(ctx, spec, layout, art = {}) {
-  const dpr = layout.dpr;
+  const dpr = layout.bgDpr || layout.dpr;
   const W = ctx.canvas.width, H = ctx.canvas.height;
   const grade = gradeFor(spec.time);
   ctx.setTransform(1, 0, 0, 1, 0, 0);

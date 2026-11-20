@@ -20,6 +20,7 @@ function button(label, testid, onClick, primary = false) {
 
 import { bugPortrait } from '../render/bugs.mjs';
 import { fmtScore } from '../sim/score.mjs';
+import { hintFoot, forInput } from '../hints.mjs';
 
 // A hint card's picture, built from in-game art: grass tufts, bug sprites,
 // move icons, and the ghost hand over a little swatch of grass.
@@ -87,6 +88,7 @@ export class Cards {
   }
 
   _open(kind, card) {
+    if (this._cleanup) { this._cleanup(); this._cleanup = null; }
     this.layer.replaceChildren(card);
     this.layer.hidden = false;
     this.layer.dataset.kind = kind;
@@ -99,6 +101,7 @@ export class Cards {
   }
 
   close() {
+    if (this._cleanup) { this._cleanup(); this._cleanup = null; }
     this.dismissHint = null;
     this.layer.hidden = true;
     this.layer.replaceChildren();
@@ -129,10 +132,11 @@ export class Cards {
 
   // A hint card: shown when a field opens, before the first stroke. Any
   // press on it (or its backdrop) dismisses it and is swallowed: it never
-  // reaches the field. Enter, Space or Esc dismiss it too.
-  showHint(hint, onDismiss) {
+  // reaches the field. Enter, Space or Esc dismiss it too. input: 'touch' or
+  // 'mouse', so the foot names the right action.
+  showHint(hint, onDismiss, input = 'touch') {
     const card = el('div', 'card card-hint');
-    card.append(hintArt(hint.art), el('h2', 'card-title', hint.title), el('p', 'card-sub hint-text', hint.text));
+    card.append(hintArt(hint.art), el('h2', 'card-title', hint.title), el('p', 'card-sub hint-text', forInput(hint.text, input)));
     const row = el('div', 'card-actions');
     let done = false;
     const dismiss = () => {
@@ -148,31 +152,78 @@ export class Cards {
     };
     row.append(button('Got it', 'btn-hint-ok', dismiss, true));
     card.append(row);
-    card.append(el('p', 'card-foot', 'Tap anywhere to play'));
+    card.append(el('p', 'card-foot', hintFoot(input)));
     this._open('hint', card);
     this.layer.addEventListener('pointerdown', onDown, true);
     this.dismissHint = dismiss;
   }
 
-  // "How to play": every hint seen so far.
-  showHowTo(list, onBack) {
+  // "How to play": every hint seen so far. As many as fit on the screen
+  // show at once (two columns on a wide screen); the rest page with
+  // Previous / Next, so the card never scrolls.
+  showHowTo(list, onBack, input = 'touch') {
     const card = el('div', 'card card-howto');
     card.append(el('h2', 'card-title', 'How to play'));
     const ul = el('ul', 'howto-list');
     ul.setAttribute('data-testid', 'howto-list');
-    for (const h of list) {
+    const items = list.map((h) => {
       const li = el('li', 'howto-item');
-      li.append(hintArt(h.art.slice(0, 2)));
+      // Two pictures each (three when the middle one is an arrow: "this,
+      // then that").
+      li.append(hintArt(h.art.slice(0, h.art.some((a) => a.arrow) ? 3 : 2)));
       const txt = el('div', 'howto-text');
-      txt.append(el('strong', '', h.title), el('span', '', h.text));
+      txt.append(el('strong', '', h.title), el('span', '', forInput(h.text, input)));
       li.append(txt);
-      ul.append(li);
-    }
+      return li;
+    });
     card.append(ul);
+    const pager = el('div', 'howto-pager');
+    const prev = button('Previous', 'btn-howto-prev', () => turn(-1));
+    const next = button('Next', 'btn-howto-next', () => turn(1));
+    const label = el('span', 'howto-page');
+    label.setAttribute('data-testid', 'howto-page');
+    label.setAttribute('aria-live', 'polite');
+    pager.append(prev, label, next);
+    card.append(pager);
     const row = el('div', 'card-actions');
     row.append(button('Back', 'btn-howto-back', onBack, true));
     card.append(row);
+    let per = items.length, page = 0;
+    const pages = () => Math.max(1, Math.ceil(items.length / per));
+    const show = () => {
+      ul.replaceChildren(...items.slice(page * per, (page + 1) * per));
+      const many = pages() > 1;
+      pager.hidden = !many;
+      label.textContent = `${page + 1} of ${pages()}`;
+      prev.disabled = page === 0;
+      next.disabled = page >= pages() - 1;
+    };
+    const turn = (d) => {
+      page = Math.max(0, Math.min(pages() - 1, page + d));
+      show();
+      // Keep the focus on a button that can still be pressed.
+      const b = d > 0 ? (next.disabled ? prev : next) : (prev.disabled ? next : prev);
+      b.focus({ preventScroll: true });
+    };
+    // Fit: the most items per page with no scrolling.
+    const fit = () => {
+      const first = page * per;
+      per = items.length;
+      page = 0;
+      show();
+      const over = () => card.scrollHeight > card.clientHeight + 1 || ul.scrollHeight > ul.clientHeight + 1;
+      while (per > 1 && over()) {
+        per--;
+        show();
+      }
+      page = Math.min(pages() - 1, Math.floor(first / per));
+      show();
+    };
     this._open('howto', card);
+    fit();
+    const onResize = () => { if (this.kind === 'howto') fit(); };
+    window.addEventListener('resize', onResize);
+    this._cleanup = () => window.removeEventListener('resize', onResize);
   }
 
   // The field-complete card: score, best, time vs par, friends petted, the
@@ -215,7 +266,7 @@ export class Cards {
     if (!o.guest) stat('Best', fmtScore(o.best), 'complete-best');
     stat('Time', `${fmtTime(time)} (par ${fmtTime(par)})`, 'complete-time');
     stat('Whole field', whole >= 1 ? 'Every blade touched' : `${Math.floor(whole * 100)}% touched`, 'complete-whole');
-    if (friends > 0) stat('Friends', petted >= friends ? `All ${friends} petted` : `${petted} of ${friends} petted`, 'complete-friends');
+    if (friends > 0) stat('Friends', petted >= friends ? (friends === 1 ? 'Petted' : `All ${friends} petted`) : `${petted} of ${friends} petted`, 'complete-friends');
     if (headStartUsed) stat('Started with', 'Head start +15%');
     right.append(dl);
     if (headStartEarned && !o.guest) {
@@ -240,12 +291,12 @@ export class Cards {
 
   // A guest challenge's checklist: everything new up to that field, before it
   // plays. Dismissed like a hint card.
-  showChecklist(items, fieldName, onDismiss) {
+  showChecklist(items, fieldName, onDismiss, input = 'touch') {
     const card = el('div', 'card card-checklist');
     card.append(el('p', 'card-kicker', 'Guest challenge'), el('h2', 'card-title', `Before ${fieldName}`));
     const ul = el('ul', 'checklist');
     ul.setAttribute('data-testid', 'checklist');
-    for (const t of items) ul.append(el('li', '', t));
+    for (const t of items) ul.append(el('li', '', forInput(t, input)));
     card.append(ul);
     const row = el('div', 'card-actions');
     let done = false;

@@ -6,9 +6,9 @@
 import { getState, setState, onChange } from './state.mjs';
 import { start as startLoop, STEP, getFps, setTimeScale, getTimeScale, resetErrors } from './loop.mjs';
 import { World } from './sim/world.mjs';
-import { LEVEL_COUNT, getLevel } from './sim/levels.mjs';
+import { LEVEL_COUNT, getLevel, shapeBounds } from './sim/levels.mjs';
 import { Autopilot, PROFILES } from './sim/solver.mjs';
-import { createCanvases, resizeCanvases } from './render/canvas.mjs';
+import { createCanvases, resizeCanvases, currentDpr } from './render/canvas.mjs';
 import { drawStatic } from './render/edge.mjs';
 import { GrassRenderer } from './render/grass.mjs';
 import { codePainter, makePngSource } from './render/atlas.mjs';
@@ -20,7 +20,7 @@ import { Cards } from './ui/cards.mjs';
 import { audio } from './audio.mjs';
 import { TUFT_URLS, FLOWER_URLS, SOIL_URL, sceneUrl, loadAll, imageNow } from './assets.mjs';
 import { vibrate } from './haptics.mjs';
-import { SPECIES } from './sim/insects.mjs';
+import { SPECIES, bugSizePx } from './sim/insects.mjs';
 import { unlockedMoves, MOVE_KEYS, MOVE_NAMES, ARM_TIMEOUT_S } from './sim/moves.mjs';
 import { BugRenderer, bugPortrait } from './render/bugs.mjs';
 import { drawPreview, MoveFx } from './render/moves.mjs';
@@ -114,6 +114,7 @@ export class Game {
     this.dirty = true;          // redraw needed while not playing
     this.lastMoteBox = null;    // where motes were drawn last frame (CSS px)
     this.perfMode = false;
+    this.liveScale = null;      // performance mode: the live canvas at 1x
     this.armed = null;          // 'ring' | 'line' | 'clear' while a move is armed
     this.armT = 0;              // seconds armed (paused while the pointer is down)
     this.press = null;          // the gesture in progress (see _down)
@@ -149,6 +150,13 @@ export class Game {
           // Resampled tufts are the main raster cost on slow devices: draw
           // them unsmoothed (they're small, so it barely shows).
           this.grass.smooth = false;
+          // The live canvas's pixels are the rest of it: draw the moving
+          // layer at 1x (the painted static layer stays sharp). Measured on
+          // field 15 at 390x844, 4x CPU throttle: ~35 fps -> ~55 fps.
+          if (currentDpr() > 1.25) {
+            this.liveScale = 1;
+            this.relayout();
+          }
         }
       },
     });
@@ -184,7 +192,15 @@ export class Game {
       }, ms);
       if (next === 'title' || next === 'map') this.challenge = null;
     }
-    if (next !== 'playing') { this.disarm(); audio.setBuzz(0); }
+    if (next !== 'playing') {
+      this.disarm();
+      audio.setBuzz(0);
+      // Leaving play mid-stroke (pause, a hidden tab, a card) ends the stroke
+      // now: the release queued by input.release() is drained, not applied,
+      // while the field waits.
+      if (this.press && this.press.kind === 'sweep' && this.world) this.world.pointerUp();
+      this.press = null;
+    }
     if (next === 'playing') {
       if (prev === 'title' || prev === 'challenge' || prev === 'map' || prev === 'ending' || !this.world) {
         this.open(this.pendingField || 1);
@@ -197,8 +213,8 @@ export class Game {
       this.input.release();
       this.input.drain();
       const h = this.hint;
-      if (h && h.checklist) this.cards.showChecklist(h.items, h.name, () => this.dismissHint());
-      else if (h) this.cards.showHint(h, () => this.dismissHint());
+      if (h && h.checklist) this.cards.showChecklist(h.items, h.name, () => this.dismissHint(), this.ptype);
+      else if (h) this.cards.showHint(h, () => this.dismissHint(), this.ptype);
     } else if (next === 'paused') {
       this.input.release();
       this._hoverEnd();
@@ -277,18 +293,19 @@ export class Game {
   // The field as a PNG (both layers), for the bug report.
   grab() {
     const c = document.createElement('canvas');
-    c.width = this.cv.live.width;
-    c.height = this.cv.live.height;
+    c.width = this.cv.bg.width;
+    c.height = this.cv.bg.height;
     const x = c.getContext('2d');
     x.drawImage(this.cv.bg, 0, 0);
-    x.drawImage(this.cv.live, 0, 0);
+    // (The live layer may be at a lower scale in performance mode.)
+    x.drawImage(this.cv.live, 0, 0, c.width, c.height);
     return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
   }
 
   showHowTo() {
     this.cards.showHowTo(hintsSeenList(hintsSeen()), () => {
       if (getState() === 'paused') this._showPauseCard();
-    });
+    }, this.ptype);
   }
 
   // The hint card was dismissed: saved as seen, and the field starts.
@@ -409,7 +426,10 @@ export class Game {
     this.pendingField = n;
     this.startedWithHeadStart = headStart;
     const spec = getLevel(n);
-    this.layout = resizeCanvases(this.cv, spec.w, spec.h);
+    this.layout = resizeCanvases(this.cv, spec.w, spec.h, shapeBounds(spec), this.liveScale);
+    // Each frame clears only what it drew: wipe the last field's leftovers
+    // (its edges, or petals) once, or they'd stay round a smaller field.
+    this._wipeLive();
     this.world = new World(n, this.layout, { headStart, bugs: this.bugsOn });
     this.input.release();
     this.input.drain();
@@ -449,10 +469,19 @@ export class Game {
     return this.world;
   }
 
+  _wipeLive() {
+    const c = this.cv.liveCtx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, this.cv.live.width, this.cv.live.height);
+    this.lastMoteBox = null;
+    this.lastOverlayBox = null;
+  }
+
   relayout() {
     if (!this.world) return;
     const spec = this.world.spec;
-    this.layout = resizeCanvases(this.cv, spec.w, spec.h);
+    this.layout = resizeCanvases(this.cv, spec.w, spec.h, shapeBounds(spec), this.liveScale);
+    this._wipeLive();
     this.world.setLayout(this.layout);
     this.grass.prepare(this.world, this.layout, this.layout.dpr);
     this._loadArt();
@@ -857,8 +886,9 @@ export class Game {
   _bugEvent(kind, b, extra) {
     const L = this.layout;
     const x = L.field.x + (b.x + b.slideX) * L.cell, y = L.field.y + (b.y + b.slideY) * L.cell;
-    const size = Math.max(32, Math.min(64, 1.8 * L.cell));
-    this.bugsR.onEvent(kind, b, extra, x, y, size, reducedMotion());
+    const size = bugSizePx(L.cell, b.sp);
+    const target = kind === 'bite' ? this.hud.moteTarget(this.world.energy.frac) : null;
+    this.bugsR.onEvent(kind, b, extra, x, y, size, reducedMotion(), target);
     const sp = SPECIES[b.sp];
     if (kind === 'pet') {
       audio.chirp(sp.chirp || 1);
@@ -878,6 +908,9 @@ export class Game {
     } else if (kind === 'bite') {
       audio.play('bonk');
       vibrate(15);
+      // The meter flashes red (a colour change, so it stays with reduced
+      // motion); the shake doesn't.
+      this.hud.bitten();
       if (!reducedMotion()) this.hud.shake();
     }
   }
@@ -1044,6 +1077,7 @@ export class Game {
       atlas: this.grass.atlas ? { S: this.grass.atlas.S, source: this.grass.atlas.source } : null,
       motes: this.motes.list.length,
       perfMode: this.perfMode,
+      liveScale: this.liveScale,
     };
   }
 

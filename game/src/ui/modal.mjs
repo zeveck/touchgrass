@@ -42,6 +42,9 @@ export function openModal(card, { kind = 'card', onClose = null, dismissable = t
   card.setAttribute('data-testid', `modal-${kind}`);
   layer.replaceChildren(card);
   layer.hidden = false;
+  // A card on the field underneath (the complete card under the name prompt)
+  // is hidden while the modal is up, so the two never show stacked.
+  document.documentElement.classList.add('modal-open');
   layer.dataset.kind = kind;
   open = { card, onClose, back, kind, dismissable };
   const first = card.querySelector('[data-autofocus]') || card.querySelector('button.primary') || card.querySelector('button, input');
@@ -55,6 +58,7 @@ export function closeModal(quiet = false) {
   const o = open;
   open = null;
   layer.hidden = true;
+  document.documentElement.classList.remove('modal-open');
   layer.replaceChildren();
   delete layer.dataset.kind;
   if (quiet) return;
@@ -67,6 +71,13 @@ export function escapeModal() {
   if (!open) return false;
   if (open.dismissable) closeModal();
   return true;
+}
+
+// Hide the toast now (a screen it belonged to has closed).
+export function hideToast() {
+  if (!toastEl) return;
+  clearTimeout(toastTimer);
+  toastEl.classList.remove('show');
 }
 
 export function toast(text, ms = 2200) {

@@ -55,15 +55,21 @@ test('insects: speeds, sizes and radii follow the design (CSS px)', () => {
   for (const k of ['bee', 'wasp', 'ant']) assert.equal(SPECIES[k].hostile, true);
   for (const k of ['ladybug', 'butterfly', 'caterpillar', 'snail']) assert.equal(SPECIES[k].hostile, false);
   assert.equal(SPECIES.caterpillar.long, 1.4);
-  assert.equal(bugSizePx(10), 32);       // clamp(1.8 cells, 32, 64)
-  assert.equal(bugSizePx(25), 45);
-  assert.equal(bugSizePx(60), 64);
+  assert.equal(bugSizePx(10), 36);       // clamp(2 cells, 36, 72) (milestone 5: bigger on desktop)
+  assert.equal(bugSizePx(25), 50);
+  assert.equal(bugSizePx(60), 72);
+  // The biters' leggy art is drawn larger so it reads next to the round friends.
+  assert.equal(bugSizePx(25, 'ant'), 60);
+  assert.ok(Math.abs(bugSizePx(25, 'bee') - 55) < 1e-9);
+  assert.ok(Math.abs(bugSizePx(25, 'wasp') - 55) < 1e-9);
+  assert.equal(bugSizePx(25, 'ladybug'), 50);
+  assert.ok(Math.abs(bugSizePx(10, 'ant') - 43.2) < 1e-9);
   assert.equal(angerRadiusPx(10), 40);   // max(1.5 cells, 40 px)
   assert.equal(angerRadiusPx(40), 60);
   assert.equal(warnRingPx(10), 48);      // max(anger + 8, 48)
   assert.equal(warnRingPx(40), 68);
   assert.equal(petRadiusPx(10, 'ladybug'), 24);   // max(24, half + 6)
-  assert.equal(petRadiusPx(60, 'ladybug'), 38);
+  assert.equal(petRadiusPx(60, 'ladybug'), 42);
   assert.equal(UNDER_FRAC, 0.35);
 });
 

@@ -43,18 +43,24 @@ export function currentDpr() {
   return Math.min(window.devicePixelRatio || 1, 2);
 }
 
-// Size both canvases to the window and compute the layout for a W x H field.
-export function resizeCanvases(cv, fieldW, fieldH) {
+// Size both canvases to the window and compute the layout for a W x H field
+// (bounds: the shape's real extent in cells, see computeLayout). liveScale:
+// a lower cap on the live canvas's pixel ratio (performance mode draws the
+// moving layer at 1x; the painted static layer stays sharp). layout.dpr is
+// the live canvas's ratio, layout.bgDpr the static one's.
+export function resizeCanvases(cv, fieldW, fieldH, bounds = null, liveScale = null) {
   const vw = window.innerWidth, vh = window.innerHeight;
   const dpr = currentDpr();
-  for (const c of [cv.bg, cv.live]) {
-    const w = Math.round(vw * dpr), h = Math.round(vh * dpr);
+  const liveDpr = liveScale ? Math.min(dpr, liveScale) : dpr;
+  for (const [c, r] of [[cv.bg, dpr], [cv.live, liveDpr]]) {
+    const w = Math.round(vw * r), h = Math.round(vh * r);
     if (c.width !== w) c.width = w;
     if (c.height !== h) c.height = h;
     c.style.width = `${vw}px`;
     c.style.height = `${vh}px`;
   }
-  const layout = computeLayout(vw, vh, fieldW, fieldH, readSafeInsets());
-  layout.dpr = dpr;
+  const layout = computeLayout(vw, vh, fieldW, fieldH, readSafeInsets(), bounds);
+  layout.dpr = liveDpr;
+  layout.bgDpr = dpr;
   return layout;
 }

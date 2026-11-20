@@ -34,7 +34,7 @@ export const LEVELS = Object.freeze([
     mix: { default: 0.5, tall: 0.2, short: 0.2, flowered: 0.1 }, validCells: 529, k: 2.2, g: 1.0, par: 55 },
   { n: 8, name: 'Butterfly Bend', time: 'afternoon', w: 25, h: 25,
     polygons: [[[0, 0], [25, 0], [25, 15], [14, 15], [14, 25], [0, 25]]],
-    mix: { default: 0.5, tall: 0.25, flowered: 0.25 }, validCells: 515, k: 2.3, g: 1.0, par: 50 },
+    mix: { default: 0.5, tall: 0.25, flowered: 0.25 }, validCells: 515, k: 2.3, g: 1.0, par: 55 },
   { n: 9, name: 'Crossroads', time: 'afternoon', w: 27, h: 27,
     polygons: [[[9, 0], [18, 0], [18, 9], [27, 9], [27, 18], [18, 18], [18, 27], [9, 27], [9, 18],
       [0, 18], [0, 9], [9, 9]]],
@@ -64,6 +64,19 @@ export const LEVELS = Object.freeze([
 ].map((l) => Object.freeze(l)));
 
 export const LEVEL_COUNT = LEVELS.length;
+
+// The shape's real extent in cells: the polygons' bounding box (field 14's
+// islands stop two rows short of its 35 x 35 grid).
+export function shapeBounds(spec) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const poly of spec.polygons) {
+    for (const [x, y] of poly) {
+      if (x < x0) x0 = x; if (y < y0) y0 = y;
+      if (x > x1) x1 = x; if (y > y1) y1 = y;
+    }
+  }
+  return { x0, y0, x1, y1 };
+}
 
 export function getLevel(n) {
   const spec = LEVELS[n - 1];

@@ -13,7 +13,7 @@ import { LEVELS } from '../sim/levels.mjs';
 import { fmtScore } from '../sim/score.mjs';
 import { mapLayout, pathThrough } from './maplayout.mjs';
 import { el, button, svg, BACK_SVG, LEAF_SVG, safeInsets } from './dom.mjs';
-import { toast } from './modal.mjs';
+import { toast, hideToast } from './modal.mjs';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -120,5 +120,9 @@ export function renderMap(root, app) {
   };
   lay();
   window.addEventListener('resize', lay);
-  return () => window.removeEventListener('resize', lay);
+  return () => {
+    window.removeEventListener('resize', lay);
+    // "Field N opens once..." belongs to the map: it doesn't follow you out.
+    hideToast();
+  };
 }

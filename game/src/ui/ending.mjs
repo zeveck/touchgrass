@@ -65,12 +65,32 @@ export function renderEnding(root) {
     x: Math.random(), y: 0.55 + Math.random() * 0.5, vy: 0.012 + Math.random() * 0.02,
     ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 1.2, delay: reduced ? 0 : i * 0.18,
   }));
-  // Each friend walks in from an edge to its own spot in the clearing.
-  const friends = met.map((sp, i) => {
-    const fromLeft = i % 2 === 0;
-    const spot = [0.5 + (i - (met.length - 1) / 2) * 0.12, 0.62 + (i % 2) * 0.07];
-    return { sp, x: fromLeft ? -0.08 : 1.08, y: spot[1] + 0.05, tx: spot[0], ty: spot[1], hd: fromLeft ? 0 : Math.PI, delay: 1.2 + i * 0.6, t: 0, arrived: false };
-  });
+  // Each friend walks in from the nearer side to its own spot in the open
+  // middle below the words, spaced so none overlap, and arrives within a
+  // few seconds.
+  const friendSize = () => Math.max(40, Math.min(64, Math.min(W, H) * 0.09));
+  const friends = met.map((sp, i) => ({ sp, i, x: 0, y: 0, tx: 0.5, ty: 0.7, hd: 0, delay: 0.9 + i * 0.45, t: 0, arrived: false, placed: false }));
+  const place = () => {
+    const S = friendSize();
+    const wb = words.getBoundingClientRect().bottom;
+    const top = Math.min(H - S, wb + S * 0.9), bottom = H - S * 0.7;
+    const cy = top + Math.max(0, bottom - top) * 0.4;
+    const gap = S * 1.5;
+    met.forEach((sp, i) => {
+      const f = friends[i];
+      const px = W / 2 + (i - (met.length - 1) / 2) * gap;
+      const py = cy + (i % 2 ? 0.3 : -0.3) * S * (met.length > 1 ? 1 : 0);
+      f.tx = px / W; f.ty = Math.min(bottom, py) / H;
+      if (!f.placed) {
+        f.placed = true;
+        const fromLeft = px < W / 2 || (px === W / 2 && i % 2 === 0);
+        f.x = fromLeft ? -S / W : 1 + S / W;
+        f.y = f.ty + 0.04;
+        f.hd = fromLeft ? 0 : Math.PI;
+      }
+    });
+  };
+  place();
   let raf = 0, last = performance.now(), t = 0;
   const frame = (now) => {
     raf = requestAnimationFrame(frame);
@@ -80,7 +100,7 @@ export function renderEnding(root) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const S = Math.max(40, Math.min(64, Math.min(W, H) * 0.09));
+    const S = friendSize();
     for (const f of friends) {
       if (t < f.delay) continue;
       f.t += dt;
@@ -88,7 +108,9 @@ export function renderEnding(root) {
       const d = Math.hypot(dx, dy);
       if (d > 3) {
         f.hd = Math.atan2(dy, dx);
-        const v = Math.min(d, (f.sp === 'butterfly' ? 120 : f.sp === 'snail' ? 45 : 75) * dt);
+        // Each friend's own pace, but quick enough to arrive in about 3 s.
+        const pace = Math.max(f.sp === 'butterfly' ? 120 : f.sp === 'snail' ? 60 : 85, W * 0.5 / 3);
+        const v = Math.min(d, pace * dt);
         f.x += (Math.cos(f.hd) * v) / W;
         f.y += (Math.sin(f.hd) * v) / H;
       } else if (!f.arrived) {
@@ -137,12 +159,13 @@ export function renderEnding(root) {
     }
   };
   raf = requestAnimationFrame(frame);
-  window.addEventListener('resize', size);
+  const onResize = () => { size(); place(); };
+  window.addEventListener('resize', onResize);
   // The golden music, fading into the dusk crickets.
   const fade = setTimeout(() => audio.fadeMusicOut(10), MUSIC_FADE_AFTER_S * 1000);
   return () => {
     cancelAnimationFrame(raf);
     clearTimeout(fade);
-    window.removeEventListener('resize', size);
+    window.removeEventListener('resize', onResize);
   };
 }

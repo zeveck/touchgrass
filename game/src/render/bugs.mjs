@@ -5,7 +5,7 @@
 // ripple, the snail's glide and shell wobble, the ant's jitter, the
 // ladybug's crawl wiggle. Angry biters puff up, tint red and show a pulsing
 // red ring past the finger. Petting: a hop, floating hearts and "+2%" the
-// first time. A bite: a squash and a little burst. Render-only: reads the
+// first time. A bite: a red pop, a squash, sparks and "−3%" flying to the meter. Render-only: reads the
 // sim, never changes it.
 
 import { loadAll, imageNow } from '../assets.mjs';
@@ -85,8 +85,9 @@ export class BugRenderer {
   }
 
   // A sim event about a bug: ['pet', bug, first] | ['bite', bug] | ...
-  // x, y: the bug's centre in CSS px (page).
-  onEvent(kind, b, extra, x, y, sizePx, reduced) {
+  // x, y: the bug's centre in CSS px (page). target: where the meter is
+  // (CSS px), for the bite's "−3%" to fly to.
+  onEvent(kind, b, extra, x, y, sizePx, reduced, target = null) {
     const f = this._fx(b);
     if (kind === 'pet') {
       f.hop = 1;
@@ -102,14 +103,23 @@ export class BugRenderer {
       }
       if (extra) this.floats.push({ kind: 'text', text: '+2%', x, y: y - sizePx * 0.55, vx: 0, vy: -34, t: 0, life: 1.4 });
     } else if (kind === 'bite') {
-      f.squash = 1;
+      // A bite reads at a glance: a red pop at the bug, a squash, sparks,
+      // and "−3%" flying off to the meter. With reduced motion: the red
+      // flash and the label, held in place, no squash or sparks.
+      f.squash = reduced ? 0 : 1;
+      this.floats.push({ kind: 'pop', x, y, t: 0, life: reduced ? 0.6 : 0.5, r: sizePx * 0.5, still: reduced });
       if (!reduced) {
-        for (let k = 0; k < 7; k++) {
-          const a = (k / 7) * Math.PI * 2;
-          this.floats.push({ kind: 'spark', x, y, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, t: 0, life: 0.35, s: 3 });
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2 + 0.2;
+          this.floats.push({ kind: 'spark', x, y, vx: Math.cos(a) * 110, vy: Math.sin(a) * 110, t: 0, life: 0.35, s: 3.5, red: true });
         }
       }
-      this.floats.push({ kind: 'text', text: '−3%', x, y: y - sizePx * 0.6, vx: 0, vy: -28, t: 0, life: 1.2, red: true });
+      const y0 = y - sizePx * 0.6;
+      if (target && !reduced) {
+        this.floats.push({ kind: 'fly', text: '−3%', x, y: y0, tx: target.x, ty: target.y, t: 0, life: 1.1 });
+      } else {
+        this.floats.push({ kind: 'text', text: '−3%', x, y: y0, vx: 0, vy: reduced ? 0 : -28, t: 0, life: 1.3, red: true, big: true });
+      }
     } else if (kind === 'angry') {
       f.puff = 0;
     }
@@ -120,7 +130,6 @@ export class BugRenderer {
     if (!paused) this.t += dt;
     const bugs = world.bugs.list;
     const cell = layout.cell;
-    const S = bugSizePx(cell);
     const fx0 = layout.field.x, fy0 = layout.field.y;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const grow = (x, y, r) => {
@@ -153,6 +162,7 @@ export class BugRenderer {
     for (const b of order) {
       const sp = SPECIES[b.sp];
       const art = BUG_ART[b.sp];
+      const S = bugSizePx(cell, b.sp);
       const body = imageNow(art.body);
       const x = fx0 + (b.x + b.slideX) * cell, y = fy0 + (b.y + b.slideY) * cell;
       const f = this._fx(b);
@@ -238,12 +248,51 @@ export class BugRenderer {
         grow(px, py, s + 4);
       } else if (p.kind === 'spark') {
         ctx.globalAlpha = a;
-        ctx.fillStyle = '#f2c14e';
+        ctx.fillStyle = p.red ? '#e0563f' : '#f2c14e';
         ctx.beginPath(); ctx.arc(px, py, p.s * (1 - u), 0, Math.PI * 2); ctx.fill();
         grow(px, py, p.s + 2);
+      } else if (p.kind === 'pop') {
+        // A red flash at the bug and a ring bursting out from it.
+        const e = p.still ? 1 : 1 - (1 - u) * (1 - u);
+        const fade = 1 - u;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = `rgba(232, 60, 40, ${0.42 * fade})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (p.still ? 1.1 : 0.7 + 0.5 * e), 0, Math.PI * 2); ctx.fill();
+        if (!p.still) {
+          const rr = p.r * (0.8 + 1.0 * e);
+          ctx.lineWidth = 5 * fade + 1;
+          ctx.strokeStyle = `rgba(200, 36, 26, ${0.9 * fade})`;
+          ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = `rgba(255, 240, 225, ${0.8 * fade})`;
+          ctx.beginPath(); ctx.arc(p.x, p.y, rr + 4, 0, Math.PI * 2); ctx.stroke();
+        }
+        grow(p.x, p.y, p.r * 1.9 + 8);
+      } else if (p.kind === 'fly') {
+        // "−3%" pops up over the bug, then flies off to the meter.
+        const hold = 0.3;
+        let fx = p.x, fy = p.y - 10 * Math.min(1, p.t / 0.15);
+        if (p.t > hold) {
+          const k = Math.min(1, (p.t - hold) / (p.life - hold));
+          const e = k * k;
+          const mx = (p.x + p.tx) / 2, my = Math.min(p.y, p.ty) - 40;
+          fx = (1 - e) * (1 - e) * p.x + 2 * (1 - e) * e * mx + e * e * p.tx;
+          fy = (1 - e) * (1 - e) * (p.y - 10) + 2 * (1 - e) * e * my + e * e * p.ty;
+        }
+        const pop = p.t < 0.15 ? 0.6 + 0.4 * (p.t / 0.15) * 1.25 : 1;
+        ctx.globalAlpha = u < 0.75 ? 1 : (1 - u) / 0.25;
+        ctx.font = `800 ${Math.round(19 * pop)}px Nunito, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(251, 243, 223, 0.95)';
+        ctx.strokeText(p.text, fx, fy);
+        ctx.fillStyle = '#b8322a';
+        ctx.fillText(p.text, fx, fy);
+        grow(fx, fy, 34);
       } else {
         ctx.globalAlpha = a;
-        ctx.font = '800 15px Nunito, sans-serif';
+        ctx.font = p.big ? '800 19px Nunito, sans-serif' : '800 15px Nunito, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineWidth = 4;
@@ -251,7 +300,7 @@ export class BugRenderer {
         ctx.strokeText(p.text, px, py);
         ctx.fillStyle = p.red ? '#b8322a' : '#8a5a00';
         ctx.fillText(p.text, px, py);
-        grow(px, py, 30);
+        grow(px, py, 34);
       }
       ctx.globalAlpha = 1;
     }

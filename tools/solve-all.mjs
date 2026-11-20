@@ -38,7 +38,7 @@ if (process.argv.includes('--write')) {
   const cols = rows.map((r) => r.n);
   const line = (label, f) => `| ${label} | ${rows.map(f).join(' | ')} |`;
   const md = [];
-  md.push('# Tuned pacing (milestone 3, with bugs)');
+  md.push('# Tuned pacing (milestone 3, with bugs; re-run in milestone 5)');
   md.push('');
   md.push('Written by `node tools/solve-all.mjs --write` from the game\'s own headless solver');
   md.push('(`game/src/sim/solver.mjs`), which drives the real sim (`game/src/sim/world.mjs`) with the');
@@ -52,6 +52,11 @@ if (process.argv.includes('--write')) {
   md.push('**What changed vs GAME_DESIGN.md "Pacing":** `k` and `g` are unchanged (the design\'s table already');
   md.push('hits the lap targets in the game\'s own sim). **Par** is reset to the solver\'s slower "average"');
   md.push('time, rounded up to 5 s, as the design specifies.');
+  md.push('');
+  md.push('**Milestone 5:** bugs are drawn bigger (`clamp(2 cells, 36, 72 px)`, ant x1.2, bee and wasp x1.1), which');
+  md.push('widens pet areas and bug margins, and each field is fitted to its shape\'s real bounds (field 14\'s');
+  md.push('islands). Field 8\'s desktop average moved from 50 s to 50.1 s, so its par is 55 s (was 50 s).');
+  md.push('Every other par is unchanged; every profile still wins every field at both layouts.');
   md.push('');
   md.push(`| Field | ${cols.join(' | ')} |`);
   md.push(`|---|${cols.map(() => '---').join('|')}|`);

@@ -355,7 +355,8 @@ speeds are now in CSS pixels, so bugs look and move the same on every screen. **
 
 - **Speeds** (the plan's cells/s × 30 px): ant 15 px/s, bee 21, wasp 33, ladybug 9, butterfly 24, caterpillar
   6, snail 4.5.
-- **Drawn size:** `clamp(1.8 cells, 32 px, 64 px)` (the caterpillar 1.4× longer). Every bug gets a soft dark
+- **Drawn size:** `clamp(2 cells, 36 px, 72 px)`, the ant ×1.2 and the bee and wasp ×1.1 (their leggy art reads
+  smaller than the round friends; milestone 5, was `clamp(1.8 cells, 32 px, 64 px)`) (the caterpillar 1.4× longer). Every bug gets a soft dark
   drop shadow (drawn in code) and a strong dark ink outline (in the art). Sprites face up (head at the top) and
   are rotated to their heading.
 - **Anger radius** (hostiles): `max(1.5 cells, 40 px)` from the bug's centre to a *sweeping* pointer.

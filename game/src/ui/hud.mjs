@@ -110,6 +110,9 @@ export class Hud {
     s.left = `${r.x}px`; s.top = `${r.y}px`; s.width = `${r.w}px`; s.height = L.portrait ? `${r.h}px` : 'auto';
     this.el.classList.toggle('portrait', L.portrait);
     this.el.classList.toggle('landscape', !L.portrait);
+    // The cards keep clear of the HUD column (style.css, short screens).
+    this.el.parentElement.style.setProperty('--hud-w', L.portrait ? '0px' : `${r.x + r.w}px`);
+    this.el.parentElement.style.setProperty('--tb-w', L.portrait ? '0px' : `${L.vw - L.toolbar.x}px`);
     const t = this.toast.style;
     t.left = `${L.field.x + L.field.w / 2}px`;
     t.top = `${L.field.y + 8}px`;
@@ -142,6 +145,16 @@ export class Hud {
     m.classList.remove('shake');
     void m.offsetWidth;
     m.classList.add('shake');
+  }
+
+  // A bite: the meter flashes red for a moment.
+  bitten() {
+    const m = this.meterEl;
+    m.classList.remove('bit');
+    void m.offsetWidth;
+    m.classList.add('bit');
+    clearTimeout(this.bitTimer);
+    this.bitTimer = setTimeout(() => m.classList.remove('bit'), 700);
   }
 
   // "New friend!" ribbon with the bug's sprite and name.

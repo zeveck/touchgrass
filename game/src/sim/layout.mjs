@@ -12,10 +12,15 @@ export const HUD_STRIP_PX = 72;        // portrait: top strip height
 export const TOOLBAR_STRIP_PX = 84;    // portrait: bottom toolbar height
 export const HUD_COL_PX = 200;         // landscape: left column width
 export const TOOLBAR_COL_PX = 100;     // landscape: right column width
-export const HUD_COL_SMALL_PX = 150;   // landscape phones (short viewports)
+export const HUD_COL_SMALL_PX = 150;   // landscape phones (short viewports): at least...
+export const HUD_COL_SMALL_MAX_PX = 210; // ...and up to this, from width the field can't use
 export const TOOLBAR_COL_SMALL_PX = 84;
 
-export function computeLayout(vw, vh, fieldW, fieldH, insets = {}) {
+// bounds: the shape's real extent in cells ({ x0, y0, x1, y1 }, from
+// shapeBounds() in levels.mjs). The cells are sized and centred on it, so a
+// shape that doesn't fill its grid (field 14's islands) isn't fitted to empty
+// rows. Defaults to the whole fieldW x fieldH grid.
+export function computeLayout(vw, vh, fieldW, fieldH, insets = {}, bounds = null) {
   const top = insets.top || 0, right = insets.right || 0;
   const bottom = insets.bottom || 0, left = insets.left || 0;
   const portrait = vh >= vw;
@@ -28,20 +33,34 @@ export function computeLayout(vw, vh, fieldW, fieldH, insets = {}) {
     area = { x: left + pad, y: hud.y + hud.h + pad, w: vw - left - right - 2 * pad,
       h: toolbar.y - pad - (hud.y + hud.h + pad) };
   } else {
-    const hc = small ? HUD_COL_SMALL_PX : HUD_COL_PX;
     const tc = small ? TOOLBAR_COL_SMALL_PX : TOOLBAR_COL_PX;
+    // A phone on its side: the HUD column takes the width the field can't
+    // use (a field is about as wide as it's tall), so the name and meter read.
+    const bw0 = bounds ? bounds.x1 - bounds.x0 : fieldW, bh0 = bounds ? bounds.y1 - bounds.y0 : fieldH;
+    const fieldNeedW = (vh - top - bottom - 2 * pad) * (bw0 / bh0);
+    const hc = small
+      ? Math.round(Math.max(HUD_COL_SMALL_PX, Math.min(HUD_COL_SMALL_MAX_PX, vw - left - right - tc - 2 * pad - fieldNeedW)))
+      : HUD_COL_PX;
     hud = { x: left, y: top, w: hc, h: vh - top - bottom };
     toolbar = { x: vw - right - tc, y: top, w: tc, h: vh - top - bottom };
     area = { x: hud.x + hud.w + pad, y: top + pad, w: toolbar.x - pad - (hud.x + hud.w + pad),
       h: vh - top - bottom - 2 * pad };
   }
   area.w = Math.max(1, area.w); area.h = Math.max(1, area.h);
-  const cell = Math.min(area.w / fieldW, area.h / fieldH);
+  const b = bounds || { x0: 0, y0: 0, x1: fieldW, y1: fieldH };
+  const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+  const cell = Math.min(area.w / bw, area.h / bh);
   const fw = cell * fieldW, fh = cell * fieldH;
-  const field = { x: area.x + (area.w - fw) / 2, y: area.y + (area.h - fh) / 2, w: fw, h: fh };
+  // The grid's origin, placed so the shape's bounds are centred in the area.
+  const field = {
+    x: area.x + (area.w - bw * cell) / 2 - b.x0 * cell,
+    y: area.y + (area.h - bh * cell) / 2 - b.y0 * cell,
+    w: fw, h: fh,
+  };
   return {
     vw, vh, portrait, hud, toolbar, area, field, cell,
     shortSide: Math.min(fw, fh),
+    bounds: b,
   };
 }
 
