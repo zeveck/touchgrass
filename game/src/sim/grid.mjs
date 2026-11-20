@@ -120,6 +120,36 @@ export class Grid {
     return SWEEP_FLAT;
   }
 
+  // Count a cell under a bug as touched (Full Clear: every other blade is
+  // touched, so it counts last). Nothing else about it changes.
+  touchCovered(i) {
+    if (this.valid[i] && !this.touched[i]) {
+      this.touched[i] = 1;
+      this.touchedCount++;
+    }
+  }
+
+  // A move (Ring / Line / Full Clear) over one cell: standing grass is
+  // flattened whatever its type (moves ignore the fresh-stroke rule) and its
+  // energy (mult x h, no speed bonus) is returned; low grass is bent and
+  // touched, free (returns 0). Invalid or blocked cells: -1 (skipped).
+  moveCell(i, dx = 0, dy = 0) {
+    if (!this.valid[i] || this.blocked[i]) return -1;
+    const h = this.h[i];
+    this._touch(i);
+    if (h < STAND_H) {
+      if (dx || dy) this._bend(i, dx, dy);
+      return 0;
+    }
+    const gain = MULT[this.type[i]] * h;
+    this.h[i] = 0;
+    this.gold[i] = 1;
+    this.rest[i] = REST_S;
+    this.loosened[i] = -1;
+    if (dx || dy) this._bend(i, dx, dy);
+    return gain;
+  }
+
   // Advance regrowth, goldness and bend springs by dt seconds.
   update(dt) {
     const { N, valid, h, rest, gold, touched, type, loosened, bx, by, bvx, bvy } = this;

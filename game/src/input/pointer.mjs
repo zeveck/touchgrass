@@ -9,7 +9,7 @@
 // Events are queued with their timestamps and drained by the fixed-step update
 // (the sim stamps a brush capsule between consecutive samples).
 //
-// queue entries: { kind: 'down' | 'move' | 'up', x, y, t (s), type }
+// queue entries: { kind: 'down' | 'move' | 'up', x, y, t (s), type, cancel? }
 // x, y are CSS px relative to the element's top-left.
 
 export class PointerInput {
@@ -91,7 +91,10 @@ export class PointerInput {
     this.activeId = null;
     this.stats[why]++;
     try { if (this.el.hasPointerCapture && this.el.hasPointerCapture(id)) this.el.releasePointerCapture(id); } catch { /* ignore */ }
-    this.queue.push({ kind: 'up', x: 0, y: 0, t: (e && e.timeStamp ? e.timeStamp : performance.now()) / 1000, type: this.activeType });
+    // cancel: not a real release (pointercancel, lost capture, blur, or the
+    // game letting go): an armed Ring or Line is cancelled, not fired.
+    this.queue.push({ kind: 'up', x: 0, y: 0, t: (e && e.timeStamp ? e.timeStamp : performance.now()) / 1000,
+      type: this.activeType, cancel: why !== 'up' });
   }
 
   _onUp(e) { this._end(e, 'up'); }

@@ -79,7 +79,9 @@ export class GrassRenderer {
   // picture; a band with anything moving draws cell by cell, as before.
   // Compositing a band's picture equals drawing its cells in order, so the
   // row order (tufts overlapping the row behind) is kept.
-  draw(ctx, world, layout, dpr, dt, shimmer = 0, bloom = null) {
+  // reveal: a move effect (render/moves.mjs MoveFx) while its wave rolls:
+  // cells it hasn't reached yet are drawn as they were before the move.
+  draw(ctx, world, layout, dpr, dt, shimmer = 0, bloom = null, reveal = null) {
     const atlas = this.atlas;
     if (!atlas) return;
     const g = world.grid;
@@ -103,7 +105,8 @@ export class GrassRenderer {
       this.cFast = new Uint8Array(N); this.keys = new Int32Array(N).fill(-2);
     }
     const { cRow, cGi, cSx, cSy, cEx, cBy, cFast, keys } = this;
-    const useCache = this.cacheOn !== false && stepped && shimmer === 0 && !bloom;
+    const useCache = this.cacheOn !== false && stepped && shimmer === 0 && !bloom && !reveal;
+    const before = reveal ? reveal.before : null;
     const bands = useCache ? this._bands(world, layout, dpr) : null;
     ctx.imageSmoothingEnabled = this.smooth;
     const B = this.bandRows;
@@ -117,6 +120,8 @@ export class GrassRenderer {
           const i = r * W + c;
           if (!valid[i]) continue;
           let hi = h[i];
+          let gv = gold[i], lo = loosened[i];
+          if (reveal && reveal.hidden(i, c, r)) { hi = before.h[i]; gv = before.gold[i]; lo = before.loosened[i]; }
           const t = type[i];
           if (bloom) {
             const dx = c + 0.5 - bloom.ox, dy = r + 0.5 - bloom.oy;
@@ -129,7 +134,7 @@ export class GrassRenderer {
           // grow from 70% to 100% of their size as h goes 0 -> 0.4.
           let shape, row, sx, sy;
           if (hi >= STAND_H) {
-            shape = (t === T_STIFF && loosened[i] >= 0) ? SHAPE_LOOSENED : t;
+            shape = (t === T_STIFF && lo >= 0) ? SHAPE_LOOSENED : t;
             const hs = 0.6 + 0.4 * hi;
             if (stepped) {
               const k = Math.round((hs - 0.6) * 10);
@@ -158,7 +163,7 @@ export class GrassRenderer {
             sy *= 1 + 0.25 * Math.sin((1 - p) * Math.PI * 3) * p;
             pop[i] *= popDecay;
           } else if (pop[i] !== 0) pop[i] = 0;
-          const gi = goldStepIndex(gold[i]);
+          const gi = goldStepIndex(gv);
           const fast = bx[i] === 0 && by[i] === 0 && p === 0 && (stepped || hi >= 0.999);
           cRow[i] = row; cGi[i] = gi; cSx[i] = sx; cSy[i] = sy; cFast[i] = fast ? 1 : 0;
           cEx[i] = fx + (c + 0.5 + jx[i]) * cell;

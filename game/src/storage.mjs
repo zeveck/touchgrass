@@ -45,3 +45,37 @@ export function hasProgress() {
   const s = readSave();
   return !!(s.progress && (s.progress.unlocked > 1 || s.progress.level > 1));
 }
+
+// ---- the Bug Garden ---------------------------------------------------------
+// garden: { [species]: { firstMet: ISO date, fields: [field numbers petted in] } }
+
+export function gardenOf(s = readSave()) {
+  const g = s.garden && typeof s.garden === 'object' ? s.garden : {};
+  return g;
+}
+
+// A friend was petted on field n. Returns { isNew } (true the first time this
+// species is ever met). Saved at once.
+export function befriend(species, field, when = new Date()) {
+  const s = readSave();
+  const g = gardenOf(s);
+  const had = g[species];
+  const entry = had && typeof had === 'object' ? had : {};
+  const fields = Array.isArray(entry.fields) ? entry.fields.filter((x) => Number.isInteger(x)) : [];
+  if (!fields.includes(field)) fields.push(field);
+  fields.sort((a, b) => a - b);
+  const firstMet = typeof entry.firstMet === 'string' ? entry.firstMet : when.toISOString();
+  writeSave({ garden: { [species]: { firstMet, fields } } });
+  return { isNew: !had };
+}
+
+// ---- hints seen ---------------------------------------------------------------
+
+export function hintsSeen(s = readSave()) {
+  const h = s.hints && typeof s.hints === 'object' ? s.hints : {};
+  return Object.keys(h).filter((k) => h[k]);
+}
+
+export function markHintSeen(id) {
+  writeSave({ hints: { [id]: true } });
+}

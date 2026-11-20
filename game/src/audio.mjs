@@ -44,6 +44,8 @@ export const EFFECTS = Object.freeze({
   whoosh: { url: `${A}whoosh.mp3`, gain: 0.79 },
 });
 const RUSTLE_URL = `${A}rustle.wav`;
+const BUZZ_URL = `${A}buzz.wav`;
+const BUZZ_GAIN = 0.5;
 
 const MUSIC_BUS = 0.2;
 const AMB_BUS = 7.9;        // +18 dB
@@ -83,6 +85,9 @@ class Audio {
     this.ducked = false;
     this.rustle = null;          // { src, gain }
     this.rustleWanted = false;
+    this.buzz = null;            // { src, gain } while a biter is angry
+    this.buzzLevel = 0;
+    this.played = [];
     this.lastTwang = 0;
     this.listeners = new Set();
     this._unlock = this._unlock.bind(this);
@@ -99,6 +104,7 @@ class Audio {
     }
     // Fetch the bytes early (decoding needs the context).
     this._fetch(RUSTLE_URL);
+    this._fetch(BUZZ_URL);
     for (const e of Object.values(EFFECTS)) this._fetch(e.url);
     this._fetch(TRACKS.title.url);
     this._fetch(AMBIENCE.meadow);
@@ -144,10 +150,15 @@ class Audio {
 
   _fetch(url) {
     if (!this.raw.has(url)) {
-      this.raw.set(url, fetch(url).then((r) => {
+      const p = fetch(url).then((r) => {
         if (!r.ok) throw new Error(`${url}: ${r.status}`);
         return r.arrayBuffer();
-      }));
+      });
+      // The eager prefetch has no consumer yet: a failed or cancelled load
+      // (e.g. the page is reloading) must not become an unhandled rejection.
+      // Consumers still see the rejection through the stored promise.
+      p.catch(() => {});
+      this.raw.set(url, p);
     }
     return this.raw.get(url);
   }
@@ -174,6 +185,8 @@ class Audio {
       ducked: this.ducked,
       rustle: this.rustle ? +this.rustle.gain.gain.value.toFixed(3) : null,
       rustleRate: this.rustle ? +this.rustle.src.playbackRate.value.toFixed(3) : null,
+      buzz: this.buzz ? +this.buzz.gain.gain.value.toFixed(3) : null,
+      played: this.played.slice(-12),
     };
   }
 
@@ -263,7 +276,7 @@ class Audio {
     const t = this.ctx.currentTime;
     this.musicBus.gain.setTargetAtTime(MUSIC_BUS * (on ? 0.35 : 1), t, 0.15);
     this.ambBus.gain.setTargetAtTime(AMB_BUS * (on ? 0.4 : 1), t, 0.15);
-    if (on) this.setRustle(false);
+    if (on) { this.setRustle(false); this.setBuzz(0); }
     this._emit();
   }
 
@@ -302,6 +315,9 @@ class Audio {
 
   play(name, { rate = 1, gain = 1 } = {}) {
     const fx = EFFECTS[name];
+    // A short log of what was asked for (dev checks read it via state()).
+    this.played.push(rate === 1 ? name : `${name}@${rate.toFixed(2)}`);
+    if (this.played.length > 30) this.played.shift();
     if (!fx || !this.ctx || this.ctx.state !== 'running') return;
     const ctx = this.ctx;
     this._buffer(fx.url).then(({ buffer, trim }) => {
@@ -377,6 +393,51 @@ class Audio {
     r.gain.gain.setTargetAtTime(target, t, target > r.gain.gain.value ? 0.04 : 0.12);
     r.src.playbackRate.setTargetAtTime(0.8 + 0.4 * Math.max(0, Math.min(1, h)), t, 0.06);
   }
+
+  // ---- the angry buzz ---------------------------------------------------------
+
+  // level: 0 = no biter angry (fades out); else 0..1, how far into its
+  // warning the angriest biter is: the buzz rises in pitch and loudness.
+  setBuzz(level) {
+    this.buzzLevel = level;
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t = this.ctx.currentTime;
+    if (level > 0) {
+      if (!this.buzz && !this.buzzPending) {
+        this.buzzPending = true;
+        this._buffer(BUZZ_URL).then(({ buffer }) => {
+          this.buzzPending = false;
+          if (this.buzz || this.buzzLevel <= 0) return;
+          const ctx = this.ctx;
+          const src = ctx.createBufferSource();
+          src.buffer = buffer;
+          src.loop = true;
+          const g = ctx.createGain();
+          g.gain.value = 0;
+          src.connect(g).connect(this.sfxBus);
+          src.start(ctx.currentTime, Math.random() * buffer.duration * 0.5);
+          this.buzz = { src, gain: g };
+          this.setBuzz(this.buzzLevel);
+        }).catch(() => { this.buzzPending = false; });
+        return;
+      }
+      if (!this.buzz) return;
+      const u = Math.max(0, Math.min(1, level));
+      this.buzz.gain.gain.setTargetAtTime(BUZZ_GAIN * (0.45 + 0.55 * u), t, 0.05);
+      this.buzz.src.playbackRate.setTargetAtTime(0.9 + 0.35 * u, t, 0.08);
+    } else if (this.buzz) {
+      const b = this.buzz;
+      this.buzz = null;
+      b.gain.gain.cancelScheduledValues(t);
+      b.gain.gain.setTargetAtTime(0, t, 0.08);
+      try { b.src.stop(t + 0.6); } catch { /* ignore */ }
+    }
+  }
+
+  // A friendly bug chirps when petted, pitched per species.
+  chirp(rate = 1) { this.play('chirp', { rate: rate * (0.97 + Math.random() * 0.06) }); }
+  // The soft low click: a disabled move, or a move you can't afford.
+  lowClick() { this.play('click', { rate: 0.7, gain: 0.7 }); }
 
   // ---- bells ----------------------------------------------------------------
 

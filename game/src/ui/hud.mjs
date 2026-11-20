@@ -58,9 +58,17 @@ export class Hud {
     const toast = document.createElement('div');
     toast.className = 'hud-toast';
     toast.setAttribute('data-testid', 'hud-toast');
+    const ribbon = document.createElement('div');
+    ribbon.className = 'ribbon';
+    ribbon.setAttribute('data-testid', 'ribbon');
+    ribbon.setAttribute('aria-hidden', 'true');
+    ribbon.innerHTML = '<img alt=""><div class="ribbon-text"><b>New friend!</b><span></span></div>';
     parent.appendChild(el);
     parent.appendChild(toast);
+    parent.appendChild(ribbon);
     parent.appendChild(live);
+    this.ribbon = ribbon;
+    this.ribbonTimer = null;
     this.el = el;
     this.toast = toast;
     this.live = live;
@@ -91,6 +99,8 @@ export class Hud {
     this.last = { muted };
     this.flowerEl.dataset.open = '0';
     this.el.dataset.time = spec.time;
+    this.setWarn(null);
+    this.hideRibbon();
   }
 
   layout(L) {
@@ -103,6 +113,9 @@ export class Hud {
     const t = this.toast.style;
     t.left = `${L.field.x + L.field.w / 2}px`;
     t.top = `${L.field.y + 8}px`;
+    const rb = this.ribbon.style;
+    rb.left = `${L.field.x + L.field.w / 2}px`;
+    rb.top = `${L.field.y + Math.min(L.field.h * 0.18, 70)}px`;
   }
 
   // Where gold motes fly to (CSS px): the meter's fill edge.
@@ -114,8 +127,47 @@ export class Hud {
 
   pulse() { this.pulseT = 1; }
 
+  // An angry biter: the meter's edge glows red on the side nearest the bug
+  // ('left' | 'right'), or null when none is angry.
+  setWarn(side) {
+    if (this.last.warn === side) return;
+    this.last.warn = side;
+    this.meterEl.classList.toggle('warn', !!side);
+    this.meterEl.dataset.warnSide = side || '';
+  }
+
+  // A bite: a short shake of the meter (none with reduced motion).
+  shake() {
+    const m = this.meterEl;
+    m.classList.remove('shake');
+    void m.offsetWidth;
+    m.classList.add('shake');
+  }
+
+  // "New friend!" ribbon with the bug's sprite and name.
+  showRibbon(name, imgUrl, ms = 2800) {
+    const r = this.ribbon;
+    r.querySelector('img').src = imgUrl;
+    r.querySelector('span').textContent = name;
+    r.classList.remove('show');
+    void r.offsetWidth;
+    r.classList.add('show');
+    clearTimeout(this.ribbonTimer);
+    this.ribbonTimer = setTimeout(() => r.classList.remove('show'), ms);
+  }
+
+  hideRibbon() {
+    clearTimeout(this.ribbonTimer);
+    this.ribbon.classList.remove('show');
+  }
+
   announce(text) {
     this.live.textContent = text;
+  }
+
+  hideToast() {
+    clearTimeout(this.toastTimer);
+    this.toast.classList.remove('show');
   }
 
   showToast(text, ms = 2600) {

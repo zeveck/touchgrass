@@ -19,8 +19,10 @@ function watchErrors(page) {
   return errors;
 }
 
+// Milestone 1/2 checks of sweeping, art and sound alone: no hint cards and
+// no bugs (dev-only ?hints=0&bugs=0; bugs and hints have e2e/bugs-moves.spec.mjs).
 async function openField(page, n) {
-  await page.goto(`/?dev=1&level=${n}`);
+  await page.goto(`/?dev=1&level=${n}&hints=0&bugs=0`);
   await expect.poll(() => page.evaluate(() => window.__game?.info().screen)).toBe('playing');
   await expect.poll(() => page.evaluate(() => window.__game.info().field)).toBe(n);
   // Let the first frames render.

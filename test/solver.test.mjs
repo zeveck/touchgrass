@@ -3,11 +3,13 @@
 // design's windows (GAME_DESIGN.md Tech plan): average within 15% of par,
 // fast and scribble within 1.5x par, calm within 2.5x par. Fast is never
 // slower than average. See design/tuning/tuned.md for the scribble note.
+// Bugs are in: good play (every pacing profile) steers round the biters and
+// is never bitten; a careless scribbler gets bitten and still always wins.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { runField, PROFILES, serpentineLanes } from '../game/src/sim/solver.mjs';
+import { runField, PACING_PROFILES, serpentineLanes } from '../game/src/sim/solver.mjs';
 import { LEVELS } from '../game/src/sim/levels.mjs';
 import { World } from '../game/src/sim/world.mjs';
 import { computeLayout } from '../game/src/sim/layout.mjs';
@@ -22,9 +24,10 @@ for (const layout of ['phone', 'desktop']) {
   for (const l of LEVELS) {
     test(`solver: field ${l.n} (${l.name}) wins on ${layout} with every profile`, () => {
       const r = {};
-      for (const p of Object.keys(PROFILES)) {
+      for (const p of PACING_PROFILES) {
         r[p] = runField(l.n, layout, p);
         assert.equal(r[p].won, true, `${p} won (meter ${r[p].meter}%)`);
+        assert.equal(r[p].bites, 0, `${p} steers round the biters: never bitten`);
       }
       results[`${layout}:${l.n}`] = r;
       const par = l.par;
@@ -52,7 +55,9 @@ test('solver: serpentine lanes cover every valid cell of every field', () => {
   for (const l of LEVELS) {
     for (const [vw, vh, pt] of [[390, 844, 'touch'], [1280, 800, 'mouse']]) {
       const lay = computeLayout(vw, vh, l.w, l.h);
-      const w = new World(l.n, lay, { collectFx: false });
+      // The lanes' geometry alone: no bugs (a friendly nudged off a cell
+      // after its lane passed leaves that cell for the next lap).
+      const w = new World(l.n, lay, { collectFx: false, bugs: false });
       for (const lane of serpentineLanes(w, pt)) {
         w.pointerDown(lane.lo * lay.cell, lane.y * lay.cell, pt);
         w.pointerMove(lane.hi * lay.cell, lane.y * lay.cell, 0.5);
@@ -74,4 +79,25 @@ test('solver: a head start makes a field quicker but never wins it at once', () 
   const hs = runField(2, 'phone', 'fast', { headStart: true });
   assert.ok(hs.time < plain.time);
   assert.ok(hs.time >= 10, `head start field 2 fast: ${hs.time}s`);
+});
+
+test('solver: the "bitten" check -- a careless scribbler (never steers) gets bitten and still wins every field', () => {
+  let bites = 0;
+  for (const layout of ['phone', 'desktop']) {
+    for (const l of LEVELS) {
+      const r = runField(l.n, layout, 'careless');
+      assert.equal(r.won, true, `field ${l.n} ${layout} (meter ${r.meter}%)`);
+      assert.ok(r.time <= l.par * 2.5, `field ${l.n} ${layout}: ${r.time}s`);
+      bites += r.bites;
+    }
+  }
+  assert.ok(bites > 0, 'it really was bitten');
+});
+
+test('solver: good play pets every friendly on the field', () => {
+  for (const n of [3, 7, 14, 15]) {
+    const r = runField(n, 'phone', 'average');
+    const friends = { 3: 1, 7: 3, 14: 4, 15: 5 }[n];
+    assert.equal(r.petted, friends, `field ${n}`);
+  }
 });

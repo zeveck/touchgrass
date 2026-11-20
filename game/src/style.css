@@ -408,3 +408,206 @@ button {
   font-weight: 700;
 }
 .title-screen .btn.primary { background: var(--deep-grass); color: #fff; font-size: 1.15rem; }
+
+/* ---- milestone 3: toolbar, warnings, ribbon, hint cards ------------------ */
+
+.toolbar {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 2;
+}
+.toolbar[hidden] { display: none; }
+.toolbar.landscape { flex-direction: column; }
+.move-btn {
+  pointer-events: auto;
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 2px 0 0;
+  border-radius: 16px;
+  border: 2px solid var(--ink);
+  background: rgba(251, 243, 223, 0.95) url("../assets/textures/paper.jpg") center / 256px;
+  box-shadow: 0 3px 10px rgba(43, 42, 38, 0.22);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  transition: transform 90ms ease, opacity 200ms ease, filter 200ms ease;
+}
+.move-btn[hidden] { display: none; }
+.move-btn img { width: 40px; height: 40px; display: block; pointer-events: none; }
+.move-price {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 1px;
+  pointer-events: none;
+}
+.move-key {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+@media (pointer: coarse) { .move-key { display: none; } }
+.move-btn:active { transform: scale(0.94); }
+.move-btn.disabled { filter: grayscale(0.9); opacity: 0.55; box-shadow: none; }
+.move-btn.armed {
+  background: #fff4c9;
+  border-color: #8a5a00;
+  animation: move-pulse 900ms ease-in-out infinite;
+}
+@keyframes move-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(231, 184, 74, 0.9), 0 3px 10px rgba(43, 42, 38, 0.22); transform: scale(1); }
+  50% { box-shadow: 0 0 0 7px rgba(231, 184, 74, 0.25), 0 3px 10px rgba(43, 42, 38, 0.22); transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .move-btn.armed { animation: none; box-shadow: 0 0 0 4px rgba(231, 184, 74, 0.8); }
+}
+
+/* An angry biter: the meter's edge glows red on the side nearest the bug. */
+.hud-meter.warn[data-warn-side="left"] {
+  box-shadow: inset 0 0 0 2px var(--ink), -8px 0 14px -2px rgba(220, 50, 35, 0.85);
+}
+.hud-meter.warn[data-warn-side="right"] {
+  box-shadow: inset 0 0 0 2px var(--ink), 8px 0 14px -2px rgba(220, 50, 35, 0.85);
+}
+.hud-meter.warn { animation: warn-glow 600ms ease-in-out infinite alternate; }
+@keyframes warn-glow { from { filter: none; } to { filter: drop-shadow(0 0 4px rgba(220, 50, 35, 0.7)); } }
+.hud-meter.shake { animation: meter-shake 360ms ease; }
+@keyframes meter-shake {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -5px 0; }
+  40% { translate: 5px 0; }
+  60% { translate: -3px 0; }
+  80% { translate: 3px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .hud-meter.warn, .hud-meter.shake { animation: none; } }
+
+/* "New friend!" ribbon (drawn in code: a banner with folded tails). */
+.ribbon {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 26px 6px 12px;
+  transform: translate(-50%, -12px) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(#e8657e, #c94a63);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(43, 42, 38, 0.3);
+  transition: opacity 260ms ease, transform 320ms cubic-bezier(.3, 1.5, .5, 1);
+  white-space: nowrap;
+}
+.ribbon::before, .ribbon::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  width: 22px;
+  height: 100%;
+  background: #a63a50;
+  border: 2px solid var(--ink);
+  z-index: -1;
+}
+.ribbon::before { left: -16px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 40% 50%); }
+.ribbon::after { right: -16px; clip-path: polygon(0 0, 100% 0, 60% 50%, 100% 100%, 0 100%); }
+.ribbon.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.ribbon img {
+  width: 44px;
+  height: 44px;
+  margin: -10px 0;
+  border-radius: 50%;
+  background: rgba(251, 243, 223, 0.95);
+  border: 2px solid var(--ink);
+  padding: 2px;
+}
+.ribbon-text { display: flex; flex-direction: column; line-height: 1.1; }
+.ribbon-text b { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 18px; text-shadow: 0 1px 0 rgba(43, 42, 38, 0.4); }
+.ribbon-text span { font-size: 13px; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .ribbon { transition: opacity 120ms linear; } }
+
+/* Hint cards: built from in-game art. */
+.card-hint { width: min(380px, 100%); animation: hint-in 320ms cubic-bezier(.3, 1.3, .5, 1); }
+@keyframes hint-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .card-hint { animation: none; } }
+.hint-art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  min-height: 92px;
+  margin: 0 auto 8px;
+  padding: 10px 14px 8px;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 85%, rgba(122, 90, 58, 0.35), rgba(122, 90, 58, 0.08) 70%, transparent 72%);
+}
+.hint-art img { display: block; }
+.ha-tuft { width: 72px; height: 72px; margin: 0 -8px; }
+.ha-tuft-flat { width: 64px; height: 64px; }
+.ha-bug { position: relative; display: block; width: 76px; height: 76px; }
+.ha-bug img { width: 76px; height: 76px; filter: drop-shadow(2px 5px 2px rgba(43, 42, 38, 0.25)); }
+.ha-bug.angry::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3.5px solid rgba(200, 40, 30, 0.8);
+  background: rgba(230, 60, 40, 0.12);
+  animation: ha-warn 900ms ease-in-out infinite;
+}
+.ha-bug.angry img { filter: drop-shadow(2px 5px 2px rgba(43, 42, 38, 0.25)) sepia(0.4) saturate(2.2) hue-rotate(-25deg); }
+@keyframes ha-warn { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.06); opacity: 0.6; } }
+.ha-move { width: 64px; height: 64px; padding: 4px; border-radius: 16px; border: 2px solid var(--ink); background: #fff4c9; box-sizing: border-box; align-self: center; }
+.ha-arrow { align-self: center; width: 26px; height: 18px; position: relative; }
+.ha-arrow::before { content: ""; position: absolute; left: 0; top: 7px; width: 18px; height: 4px; background: var(--ink); border-radius: 2px; }
+.ha-arrow::after { content: ""; position: absolute; right: 0; top: 2px; border: 7px solid transparent; border-left: 10px solid var(--ink); border-right: 0; }
+.ha-leaf svg { width: 52px; height: 52px; display: block; }
+.ha-swatch { position: relative; display: flex; align-items: flex-end; height: 70px; padding: 0 6px; }
+.ha-swatch-tuft { width: 46px; height: 46px; margin: 0 -9px; }
+.ha-hand {
+  position: absolute;
+  width: 62px;
+  height: 62px;
+  left: 0;
+  top: -6px;
+  animation: ha-glide 2.6s ease-in-out infinite;
+  filter: drop-shadow(2px 4px 2px rgba(43, 42, 38, 0.25));
+}
+@keyframes ha-glide {
+  0% { transform: translateX(-6px); opacity: 0; }
+  15% { opacity: 1; }
+  70% { transform: translateX(150px); opacity: 1; }
+  85%, 100% { transform: translateX(150px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .ha-hand { animation: none; transform: translateX(70px); } .ha-bug.angry::before { animation: none; } }
+.hint-text { font-size: 15px; line-height: 1.4; }
+.card-foot { margin: 10px 0 0; font-size: 12px; color: #6a6457; }
+
+.card-howto { width: min(440px, 100%); text-align: left; }
+.card-howto .card-title { text-align: center; }
+.howto-list { list-style: none; margin: 8px 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.howto-item { display: flex; align-items: center; gap: 10px; }
+.howto-item .hint-art { flex: none; width: 112px; min-height: 0; margin: 0; padding: 4px; gap: 0; transform-origin: center; }
+.howto-item .hint-art > * { transform: scale(0.62); margin: -14px -12px; }
+.howto-item .ha-swatch { margin: -14px -40px; }
+.howto-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.3; }
+.howto-text strong { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 16px; }

@@ -13,7 +13,8 @@ const sq = (n) => [[0, 0], [n, 0], [n, n], [0, n]];
 
 // k = laps to the line, g = regrow scale, par in seconds. k and g are the
 // design's table; par is the headless solver's slower 'average' time (phone or
-// desktop), rounded up to 5 s (see design/tuning/tuned.md, tools/solve-all.mjs).
+// desktop), rounded up to 5 s, with every field's bugs in (milestone 3; see
+// design/tuning/tuned.md, tools/solve-all.mjs).
 export const LEVELS = Object.freeze([
   { n: 1, name: 'The Back Lawn', time: 'morning', w: 12, h: 12, polygons: [sq(12)],
     mix: { default: 1.0 }, validCells: 144, k: 1.5, g: 1.5, par: 30 },
@@ -33,7 +34,7 @@ export const LEVELS = Object.freeze([
     mix: { default: 0.5, tall: 0.2, short: 0.2, flowered: 0.1 }, validCells: 529, k: 2.2, g: 1.0, par: 55 },
   { n: 8, name: 'Butterfly Bend', time: 'afternoon', w: 25, h: 25,
     polygons: [[[0, 0], [25, 0], [25, 15], [14, 15], [14, 25], [0, 25]]],
-    mix: { default: 0.5, tall: 0.25, flowered: 0.25 }, validCells: 515, k: 2.3, g: 1.0, par: 55 },
+    mix: { default: 0.5, tall: 0.25, flowered: 0.25 }, validCells: 515, k: 2.3, g: 1.0, par: 50 },
   { n: 9, name: 'Crossroads', time: 'afternoon', w: 27, h: 27,
     polygons: [[[9, 0], [18, 0], [18, 9], [27, 9], [27, 18], [18, 18], [18, 27], [9, 27], [9, 18],
       [0, 18], [0, 9], [9, 9]]],
@@ -51,15 +52,15 @@ export const LEVELS = Object.freeze([
     k: 2.8, g: 0.9, par: 70 },
   { n: 13, name: 'The Big Green', time: 'golden', w: 34, h: 34, polygons: [sq(34)],
     mix: { default: 0.3, tall: 0.25, short: 0.15, flowered: 0.2, stiff: 0.1 }, validCells: 1156,
-    k: 3.0, g: 0.85, par: 95, stripes: 'alternating' },
+    k: 3.0, g: 0.85, par: 90, stripes: 'alternating' },
   { n: 14, name: 'Two Islands', time: 'golden', w: 35, h: 35,
     polygons: [[[0, 0], [35, 0], [35, 20], [0, 20]], [[8, 25], [28, 25], [28, 33], [8, 33]]],
     mix: { default: 0.3, tall: 0.25, short: 0.15, flowered: 0.15, stiff: 0.15 }, validCells: 860,
-    k: 3.2, g: 0.85, par: 90 },
+    k: 3.2, g: 0.85, par: 85 },
   { n: 15, name: 'Sunset Meadow', time: 'golden', w: 36, h: 36,
     polygons: [[[6, 0], [30, 0], [36, 10], [36, 26], [30, 36], [6, 36], [0, 26], [0, 10]]],
     mix: { default: 0.25, tall: 0.25, short: 0.2, flowered: 0.15, stiff: 0.15 }, validCells: 1176,
-    k: 3.5, g: 0.8, par: 110 },
+    k: 3.5, g: 0.8, par: 100 },
 ].map((l) => Object.freeze(l)));
 
 export const LEVEL_COUNT = LEVELS.length;

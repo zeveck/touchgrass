@@ -19,16 +19,42 @@ import { Hud } from './ui/hud.mjs';
 import { Cards } from './ui/cards.mjs';
 import { audio } from './audio.mjs';
 import { TUFT_URLS, FLOWER_URLS, SOIL_URL, sceneUrl, loadAll, imageNow } from './assets.mjs';
+import { vibrate } from './haptics.mjs';
+import { SPECIES } from './sim/insects.mjs';
+import { unlockedMoves, MOVE_KEYS, MOVE_NAMES, ARM_TIMEOUT_S } from './sim/moves.mjs';
+import { BugRenderer, bugPortrait } from './render/bugs.mjs';
+import { drawPreview, MoveFx } from './render/moves.mjs';
+import { Toolbar } from './ui/toolbar.mjs';
+import { PressWait } from './input/tap.mjs';
+import { hintFor, hintsSeenList } from './hints.mjs';
+import { befriend, hintsSeen, markHintSeen } from './storage.mjs';
 
-function vibrate(ms) {
-  try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* not supported */ }
+const HAND_URL = 'assets/ui/hand.png';
+const MOVE_HOWTO = {
+  ring: 'Ring: press the field, drag to aim, let go to fire',
+  line: 'Line: drag along the field, let go to fire',
+  clear: 'Full Clear: tap the field',
+};
+
+function reducedMotion() {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function union(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) };
 }
 
 const GAME_STATES = new Set(['playing', 'paused', 'level-won', 'ending', 'hint']);
 const WIN_DELAY_S = 2.4;     // the bloom plays before the card
 
 export class Game {
-  constructor({ tufts = 'png' } = {}) {
+  // hints: false never shows hint cards; bugs: false opens fields empty
+  // (dev / e2e of sweeping alone, `?hints=0`, `?bugs=0` on dev hosts).
+  constructor({ tufts = 'png', hints = true, bugs = true } = {}) {
+    this.hintsOn = hints;
+    this.bugsOn = bugs;
     const root = document.createElement('div');
     root.id = 'game';
     root.className = 'game-root';
@@ -42,6 +68,8 @@ export class Game {
     this.hud.onMilestone = (m) => { if (m < 4) audio.milestone(m); };
     this.hud.onWhole = () => audio.wholeFieldTing();
     this.cards = new Cards(root);
+    this.toolbar = new Toolbar(root, { onPress: (k) => this.pressMove(k) });
+    this.bugsR = new BugRenderer();
     this.input = new PointerInput(this.cv.live);
     this.input.attach();
     // Painted tufts by default; the code painter draws until they've loaded
@@ -53,7 +81,8 @@ export class Game {
     this.art = {};
     this.artReady = Promise.resolve();
     // Preload what the first fields need while the title shows.
-    loadAll([SOIL_URL, ...FLOWER_URLS, 'assets/ui/flower-petal.png', sceneUrl('morning', true), sceneUrl('morning', false)]).catch(() => {});
+    loadAll([SOIL_URL, ...FLOWER_URLS, 'assets/ui/flower-petal.png', sceneUrl('morning', true), sceneUrl('morning', false),
+      HAND_URL, 'assets/ui/ring.png', 'assets/ui/line.png', 'assets/ui/clear.png']).catch(() => {});
     this.world = null;
     this.layout = null;
     this.n = 0;
@@ -68,6 +97,17 @@ export class Game {
     this.dirty = true;          // redraw needed while not playing
     this.lastMoteBox = null;    // where motes were drawn last frame (CSS px)
     this.perfMode = false;
+    this.armed = null;          // 'ring' | 'line' | 'clear' while a move is armed
+    this.armT = 0;              // seconds armed (paused while the pointer is down)
+    this.press = null;          // the gesture in progress (see _down)
+    this.fxList = [];           // move effects in play
+    this.prices = {};           // the toolbar's shown prices (share of the line)
+    this.clearPrice = null;     // Full Clear's exact price (refreshed twice a second)
+    this.priceT = 0;
+    this.pendingHint = null;
+    this.hint = null;
+    this.lastOverlayBox = null;
+    this.ptype = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse';
     this.renderMs = 0;
     this.sampleRender = [];
 
@@ -103,20 +143,22 @@ export class Game {
     this.root.hidden = !GAME_STATES.has(next);
     this.dirty = true;
     this._audioFor(next);
+    if (next !== 'playing') { this.disarm(); audio.setBuzz(0); }
     if (next === 'playing') {
       if (prev === 'title' || prev === 'challenge' || prev === 'map' || !this.world) {
         this.open(this.pendingField || 1);
       }
       if (this.cards.kind !== 'error') this.cards.close();
       this.hud.show(true);
+      this.toolbar.show(true);
+    } else if (next === 'hint') {
+      this.input.release();
+      this.input.drain();
+      const h = this.hint;
+      if (h) this.cards.showHint(h, () => this.dismissHint());
     } else if (next === 'paused') {
       this.input.release();
-      this.cards.showPause({
-        fieldName: this.world ? `${this.n}. ${this.world.spec.name}` : '',
-        onResume: () => this.resume(),
-        onRestart: () => this.restart(),
-        onTitle: () => setState('title'),
-      });
+      this._showPauseCard();
     } else if (next === 'level-won') {
       this.input.release();
       const w = this.world;
@@ -125,6 +167,7 @@ export class Game {
         n: this.n, name: w.spec.name, time: w.wonAt, par: w.spec.par, whole: w.wholeAtWin,
         headStartEarned: w.headStartEarned, headStartUsed: w.energy.headStart,
         last: this.n >= LEVEL_COUNT,
+        petted: w.petted, friends: w.bugs.list.filter((b) => !b.hostile).length,
         onNext: () => this.next(),
       });
     } else if (next === 'ending') {
@@ -137,6 +180,29 @@ export class Game {
       this.cards.close();
       this.autopilot = null;
     }
+  }
+
+  _showPauseCard() {
+    this.cards.showPause({
+      fieldName: this.world ? `${this.n}. ${this.world.spec.name}` : '',
+      onResume: () => this.resume(),
+      onRestart: () => this.restart(),
+      onTitle: () => setState('title'),
+      onHowTo: hintsSeenList(hintsSeen()).length ? () => this.showHowTo() : null,
+    });
+  }
+
+  showHowTo() {
+    this.cards.showHowTo(hintsSeenList(hintsSeen()), () => {
+      if (getState() === 'paused') this._showPauseCard();
+    });
+  }
+
+  // The hint card was dismissed: saved as seen, and the field starts.
+  dismissHint() {
+    if (this.hint) markHintSeen(this.hint.id);
+    this.hint = null;
+    if (getState() === 'hint') setState('playing');
   }
 
   // Music, ambience and the rustle for a screen.
@@ -167,9 +233,28 @@ export class Game {
       audio.toggleMute();
       return;
     }
+    if (s === 'hint') {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (this.cards.dismissHint) this.cards.dismissHint();
+      }
+      return;
+    }
+    if (s === 'playing' && MOVE_KEYS[e.key] && !e.repeat) {
+      e.preventDefault();
+      this.pressMove(MOVE_KEYS[e.key]);
+      return;
+    }
+    // Esc cancels an armed move first; only when nothing is armed does it pause.
+    if (e.key === 'Escape' && s === 'playing' && this.armed) {
+      e.preventDefault();
+      this.disarm();
+      audio.play('click', { rate: 0.85 });
+      return;
+    }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (s === 'playing') { e.preventDefault(); this.pause(); }
-      else if (s === 'paused') { e.preventDefault(); this.resume(); }
+      else if (s === 'paused' && this.cards.kind === 'pause') { e.preventDefault(); this.resume(); }
     }
   }
 
@@ -212,9 +297,19 @@ export class Game {
     this.startedWithHeadStart = headStart;
     const spec = getLevel(n);
     this.layout = resizeCanvases(this.cv, spec.w, spec.h);
-    this.world = new World(n, this.layout, { headStart });
+    this.world = new World(n, this.layout, { headStart, bugs: this.bugsOn });
     this.input.release();
     this.input.drain();
+    this.press = null;
+    this.disarm();
+    this.fxList = [];
+    this.bugsR.clear();
+    audio.setBuzz(0);
+    this.toolbar.setMoves(unlockedMoves(n));
+    this._typicalPrices();
+    // A hint card for what's new here, shown before the first stroke.
+    this.hint = null;
+    this.pendingHint = this.hintsOn ? hintFor(n, hintsSeen()) : null;
     this.autopilot = null;
     this.winT = null;
     this.bloom = null;
@@ -224,6 +319,7 @@ export class Game {
     this._loadArt();
     this.hud.setField(spec, n);
     this.hud.layout(this.layout);
+    this.toolbar.layout(this.layout);
     this.dirty = true;
     if (headStart) this.hud.showToast('Head start: +15%');
     this.root.dataset.field = String(n);
@@ -239,7 +335,96 @@ export class Game {
     this.grass.prepare(this.world, this.layout, this.layout.dpr);
     this._loadArt();
     this.hud.layout(this.layout);
+    this.toolbar.layout(this.layout);
+    this._typicalPrices();
     this.dirty = true;
+  }
+
+  // ---- moves ------------------------------------------------------------------
+
+  // The toolbar's prices: the Ring's and Line's for an average spot (fixed per
+  // field and layout), Full Clear's exact price (refreshed twice a second).
+  _typicalPrices() {
+    const w = this.world;
+    if (!w) return;
+    this.prices = {};
+    for (const k of unlockedMoves(this.n)) {
+      if (k !== 'clear') this.prices[k] = w.typicalPrice(k, this.ptype);
+    }
+    this._clearPrice();
+  }
+
+  _clearPrice() {
+    const w = this.world;
+    if (!w || !unlockedMoves(this.n).includes('clear')) { this.clearPrice = null; return; }
+    this.clearPrice = w.movePrice('clear', {}, this.ptype);
+    this.prices.clear = this.clearPrice.frac;
+    this.priceT = 0;
+  }
+
+  // A toolbar button or key 1 / 2 / 3: arm the move, or cancel it if armed.
+  pressMove(k) {
+    if (getState() !== 'playing' || !this.world || this.world.won) return;
+    if (!unlockedMoves(this.n).includes(k)) return;
+    if (this.armed === k) {
+      this.disarm();
+      audio.play('click', { rate: 0.85 });
+      return;
+    }
+    if (this.toolbar.isDisabled(k)) {
+      audio.lowClick();
+      this.hud.showToast(`${MOVE_NAMES[k]} needs ${Math.max(1, Math.round((this.prices[k] || 0) * 100))}% on the meter`, 1800);
+      return;
+    }
+    // Arming never drains the meter: it's paid when it fires.
+    if (this.press && this.press.kind !== 'sweep' && this.press.kind !== 'wait') this.press = null;
+    this.armed = k;
+    this.armT = 0;
+    audio.play('click');
+    // (Full Clear's preview says what to do itself.)
+    if (k !== 'clear') this.hud.showToast(MOVE_HOWTO[k], 2400);
+    else this.hud.hideToast();
+    this.hud.announce(`${MOVE_NAMES[k]} armed`);
+  }
+
+  // Cancel an armed move. Nothing was paid, so there's nothing to refund.
+  disarm() {
+    if (!this.armed) return;
+    this.armed = null;
+    this.hud.hideToast();
+    this.armT = 0;
+    if (this.press && (this.press.kind === 'ring' || this.press.kind === 'line' || this.press.kind === 'clear')) {
+      this.press = { kind: 'dead' };    // the rest of this press does nothing
+    }
+  }
+
+  _fire(kind, arg, type) {
+    const w = this.world;
+    const g = w.grid;
+    const before = { h: g.h.slice(), gold: g.gold.slice(), loosened: g.loosened.slice() };
+    const res = w.fireMove(kind, arg, type);
+    if (!res.fired) {
+      // Can't afford it here (or the drag never touched the field): nothing
+      // is charged, a soft low click, and the move stays armed.
+      audio.lowClick();
+      if (res.reason === 'afford') this.hud.showToast('Not enough energy for that spot', 1800);
+      else if (res.reason === 'empty') this.hud.showToast('Drag across the field', 1600);
+      this.armT = 0;
+      return;
+    }
+    this.fxList.push(new MoveFx(kind, res.price.area, before, this.layout, w));
+    this.hud.hideToast();
+    audio.play(kind === 'ring' ? 'whoomp' : kind === 'line' ? 'swish' : 'gust');
+    vibrate(12);
+    this.armed = null;
+    this.armT = 0;
+    this._clearPrice();
+  }
+
+  // Field-relative cells for a page point.
+  _cells(ev) {
+    const L = this.layout;
+    return [(ev.x - L.field.x) / L.cell, (ev.y - L.field.y) / L.cell];
   }
 
   // The static layer's pictures for this field and orientation: draw now with
@@ -282,23 +467,127 @@ export class Game {
     const events = this.input.drain();
     const w = this.world;
     if (!w || getState() !== 'playing' || this.cards.kind) return;
-    const fx = this.layout.field.x, fy = this.layout.field.y;
     for (const ev of events) {
-      if (ev.kind === 'down') {
-        w.pointerDown(ev.x - fx, ev.y - fy, ev.type);
-        this.lastInputT = ev.t;
-        this.lastTouch = { x: ev.x, y: ev.y };
-        vibrate(8);
-      } else if (ev.kind === 'move') {
-        if (!w.pointer) continue;
-        const dt = Math.max(0.001, ev.t - this.lastInputT);
-        this.lastInputT = ev.t;
-        w.pointerMove(ev.x - fx, ev.y - fy, dt);
-        this.lastTouch = { x: ev.x, y: ev.y };
-      } else if (ev.kind === 'up') {
-        w.pointerUp();
-      }
+      if (ev.kind === 'down') this._down(ev);
+      else if (ev.kind === 'move') this._move(ev);
+      else if (ev.kind === 'up') this._up(ev);
     }
+  }
+
+  // A press. On a friendly bug's pet area it waits to see if it's a tap (a
+  // pet) or a drag (a sweep, or the armed move, from the press point).
+  // Anywhere else it sweeps (or starts the armed move) at once.
+  _down(ev) {
+    const L = this.layout;
+    const pt = ev.type === 'touch' ? 'touch' : 'mouse';
+    if (pt !== this.ptype) { this.ptype = pt; this._typicalPrices(); }   // brush (and so prices) differ by pointer
+    this.lastTouch = { x: ev.x, y: ev.y };
+    const bug = this.world.friendAt(ev.x - L.field.x, ev.y - L.field.y);
+    if (bug) {
+      this.press = { kind: 'wait', wait: new PressWait(bug, ev.x, ev.y, ev.t), down: ev };
+      return;
+    }
+    this._begin(ev);
+  }
+
+  _begin(ev) {
+    const w = this.world, L = this.layout;
+    this.lastInputT = ev.t;
+    if (this.armed === 'ring') {
+      const [x, y] = this._cells(ev);
+      this.press = { kind: 'ring', type: ev.type, x, y };
+    } else if (this.armed === 'line') {
+      this.press = { kind: 'line', type: ev.type, path: [this._cells(ev)] };
+    } else if (this.armed === 'clear') {
+      this.press = { kind: 'clear', type: ev.type, at: this._cells(ev) };
+    } else {
+      w.pointerDown(ev.x - L.field.x, ev.y - L.field.y, ev.type);
+      this.press = { kind: 'sweep' };
+      vibrate(8);
+      if (this.n === 1) markHintSeen('sweep');
+    }
+  }
+
+  _move(ev) {
+    const p = this.press;
+    if (!p) return;
+    const w = this.world, L = this.layout;
+    this.lastTouch = { x: ev.x, y: ev.y };
+    if (p.kind === 'wait') {
+      if (p.wait.move(ev) === 'drag') this._resolveWait();
+      return;
+    }
+    if (p.kind === 'sweep') {
+      if (!w.pointer) return;
+      const dt = Math.max(0.001, ev.t - this.lastInputT);
+      this.lastInputT = ev.t;
+      w.pointerMove(ev.x - L.field.x, ev.y - L.field.y, dt);
+    } else if (p.kind === 'ring') {
+      [p.x, p.y] = this._cells(ev);
+    } else if (p.kind === 'line') {
+      const q = this._cells(ev);
+      const last = p.path[p.path.length - 1];
+      if (Math.hypot(q[0] - last[0], q[1] - last[1]) >= 0.25) p.path.push(q);
+      else p.end = q;
+    }
+  }
+
+  // A wait on a bug turned out to be a drag: start it from the press point
+  // and replay the moves held back.
+  _resolveWait() {
+    const p = this.press;
+    this._begin(p.down);
+    for (const m of p.wait.buffered) this._move(m);
+  }
+
+  _up(ev) {
+    const p = this.press;
+    this.press = null;
+    if (!p) return;
+    if (p.kind === 'wait') {
+      if (ev.cancel) return;
+      if (p.wait.up(ev.t) === 'tap') {
+        // A pet (also while a move is armed: the move stays armed).
+        this.world.pet(p.wait.bug);
+        return;
+      }
+      this.press = p;
+      this._resolveWait();
+      const q = this.press;
+      this.press = null;
+      this._finish(q, ev);
+      return;
+    }
+    this._finish(p, ev);
+  }
+
+  _finish(p, ev) {
+    const w = this.world;
+    if (p.kind === 'sweep') { w.pointerUp(); return; }
+    if (p.kind === 'dead') return;
+    if (ev.cancel) {
+      // pointercancel, lost capture or blur: an armed move is cancelled,
+      // nothing paid.
+      this.disarm();
+      return;
+    }
+    if (p.kind === 'ring') this._fire('ring', { x: p.x, y: p.y }, p.type);
+    else if (p.kind === 'line') {
+      const path = p.end ? [...p.path, p.end] : p.path;
+      this._fire('line', { path }, p.type);
+    } else if (p.kind === 'clear') {
+      const [x, y] = p.at;
+      const g = w.grid;
+      const on = x >= 0 && y >= 0 && x < g.W && y < g.H && g.valid[Math.floor(y) * g.W + Math.floor(x)];
+      if (on) this._fire('clear', {}, p.type);
+      else this.hud.showToast('Tap the field', 1400);
+    }
+  }
+
+  // Held on a bug past 350 ms without moving: a sweep from the press point.
+  _tickPress() {
+    const p = this.press;
+    if (p && p.kind === 'wait' && p.wait.expired(performance.now() / 1000)) this._resolveWait();
   }
 
   // One fixed step of the sim.
@@ -312,14 +601,42 @@ export class Game {
   update(dt) {
     // Paused, on a card, or showing "Something went wrong": the sim waits.
     if (getState() !== 'playing' || this.cards.kind === 'error') { this.input.drain(); return; }
+    if (this.pendingHint && this.world) {
+      // What's new here: a hint card, before the first stroke, field paused.
+      const h = this.pendingHint;
+      this.pendingHint = null;
+      if (this.world.firstStrokeAt === null && !this.autopilot) {
+        this.hint = h;
+        this.input.release();
+        this.input.drain();
+        this.press = null;
+        setState('hint');
+        return;
+      }
+    }
     this._applyInput();
+    this._tickPress();
+    if (this.armed && !this.input.down) {
+      // The 5 s auto-cancel is paused while the pointer is down.
+      this.armT += dt;
+      if (this.armT >= ARM_TIMEOUT_S) {
+        this.disarm();
+        audio.play('click', { rate: 0.85 });
+      }
+    }
     this.simStep(dt);
     const w = this.world;
     if (!w) return;
+    this.priceT += dt;
+    if (this.priceT >= 0.5) this._clearPrice();
     if (w.won) {
       if (this.winT === null) {
         this.winT = 0;
         this.input.release();
+        this.press = null;
+        this.disarm();
+        audio.setBuzz(0);
+        this.hud.setWarn(null);
         this.autopilot = null;
         if (w.headStartEarned) this.pendingHeadStart = { field: this.n + 1 };
         audio.bloomArpeggio();
@@ -355,8 +672,93 @@ export class Game {
       } else if (kind === 'loosen') {
         audio.twang();
         if (performance.now() - (this.lastLoosenBuzz || 0) > 120) { this.lastLoosenBuzz = performance.now(); vibrate(10); }
+      } else if (kind === 'bug') {
+        this._bugEvent(e[1], e[2], e[3]);
       }
     }
+  }
+
+  _bugEvent(kind, b, extra) {
+    const L = this.layout;
+    const x = L.field.x + (b.x + b.slideX) * L.cell, y = L.field.y + (b.y + b.slideY) * L.cell;
+    const size = Math.max(32, Math.min(64, 1.8 * L.cell));
+    this.bugsR.onEvent(kind, b, extra, x, y, size, reducedMotion());
+    const sp = SPECIES[b.sp];
+    if (kind === 'pet') {
+      audio.chirp(sp.chirp || 1);
+      vibrate(25);
+      if (extra) {
+        // First pet of this bug on this field: saved to the Bug Garden.
+        const { isNew } = befriend(b.sp, this.n);
+        if (isNew) {
+          this.hud.showRibbon(sp.name, bugPortrait(b.sp));
+          audio.newFriendJingle();
+          this.hud.announce(`New friend: ${sp.name}`);
+        }
+      }
+    } else if (kind === 'angry') {
+      vibrate(20);
+      this.hud.announce(`A grumpy ${sp.name.toLowerCase()}: move away`);
+    } else if (kind === 'bite') {
+      audio.play('bonk');
+      vibrate(15);
+      if (!reducedMotion()) this.hud.shake();
+    }
+  }
+
+  // The angry buzz, and the meter's red edge on the side nearest the bug.
+  _warnings() {
+    const w = this.world;
+    let worst = null;
+    for (const b of w.bugs.list) if (b.state === 'angry' && (!worst || b.angerT > worst.angerT)) worst = b;
+    if (!worst || getState() !== 'playing') {
+      audio.setBuzz(0);
+      this.hud.setWarn(null);
+      return;
+    }
+    audio.setBuzz(0.05 + 0.95 * Math.min(1, worst.angerT / 1.5));
+    const L = this.layout;
+    const bx = L.field.x + worst.x * L.cell;
+    const mb = this.hud.meterEl.getBoundingClientRect();
+    this.hud.setWarn(L.portrait ? (bx < mb.left + mb.width / 2 ? 'left' : 'right') : 'right');
+  }
+
+  // Field 1: a ghost hand glides along a stroke until the first stroke.
+  _drawHand(ctx, dpr) {
+    const w = this.world;
+    if (this.n !== 1 || w.firstStrokeAt !== null) return null;
+    const img = imageNow(HAND_URL);
+    if (!img) return null;
+    const L = this.layout;
+    const T = 2.8;
+    const u = ((performance.now() / 1000) % T) / T;
+    // Fade in, glide, fade out, rest.
+    let a, k;
+    if (u < 0.12) { a = u / 0.12; k = 0; } else if (u < 0.72) { a = 1; k = (u - 0.12) / 0.6; } else if (u < 0.85) { a = 1 - (u - 0.72) / 0.13; k = 1; } else { a = 0; k = 1; }
+    const e = k * k * (3 - 2 * k);
+    const fx = L.field.x, fy = L.field.y, fw = L.field.w, fh = L.field.h;
+    const px = (t) => fx + fw * (0.2 + 0.6 * t);
+    const py = (t) => fy + fh * (0.58 - 0.16 * t + 0.1 * Math.sin(t * Math.PI));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // A faint gold trail behind the fingertip.
+    if (a > 0 && e > 0.02) {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(10, this.world.brushRadiusPx(this.ptype) * 1.2);
+      ctx.strokeStyle = `rgba(255, 228, 140, ${0.35 * a})`;
+      ctx.beginPath();
+      ctx.moveTo(px(0), py(0));
+      for (let j = 1; j <= 20; j++) { const t = (j / 20) * e; ctx.lineTo(px(t), py(t)); }
+      ctx.stroke();
+    }
+    const H = Math.max(64, Math.min(120, fw * 0.24));
+    const sc = H / 192;
+    const x = px(e), y = py(e);
+    ctx.globalAlpha = 0.85 * a;
+    // The fingertip (80, 14 in the art) sits on the path.
+    ctx.drawImage(img, x - 80 * sc, y - 14 * sc, 192 * sc, 192 * sc);
+    ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return { x0: fx, y0: fy - 10, x1: fx + fw, y1: fy + fh + H };
   }
 
   render(frameDt) {
@@ -375,7 +777,7 @@ export class Game {
     const spill = this.grass.atlas ? this.grass.atlas.S : 0;
     let cx0 = L.field.x * dpr - spill, cy0 = L.field.y * dpr - spill;
     let cx1 = (L.field.x + L.field.w) * dpr + spill, cy1 = (L.field.y + L.field.h) * dpr + spill * 0.5;
-    const mb = this.lastMoteBox;
+    const mb = union(this.lastMoteBox, this.lastOverlayBox);
     const bb = this.bloom ? this.bloom.box() : null;
     if (bb) {
       cx0 = Math.min(cx0, bb.x0 * dpr); cy0 = Math.min(cy0, bb.y0 * dpr);
@@ -390,12 +792,39 @@ export class Game {
     this._consumeFx();
     const whole = this.world.grid.wholeField();
     const shimmer = whole >= 0.9 && whole < 1 ? 0.5 + 0.5 * Math.sin(performance.now() / 260) : 0;
-    this.grass.draw(ctx, this.world, L, dpr, s === 'playing' ? frameDt : 0, shimmer, this.bloom);
+    const playing = s === 'playing';
+    const reduced = reducedMotion();
+    // Move effects roll; a wave not there yet leaves the grass as it was.
+    if (playing) for (const f of this.fxList) f.update(frameDt);
+    this.fxList = this.fxList.filter((f) => !f.done());
+    const reveal = this.fxList.find((f) => f.kind !== 'line') || null;
+    this.grass.draw(ctx, this.world, L, dpr, playing ? frameDt : 0, shimmer, this.bloom, reveal);
     if (this.bloom) {
-      if (s === 'playing') this.bloom.update(frameDt);
+      if (playing) this.bloom.update(frameDt);
       this.bloom.draw(ctx, dpr);
     }
-    if (s === 'playing') {
+    let over = null;
+    for (const f of this.fxList) over = union(over, f.draw(ctx, dpr, reduced));
+    if (this.armed && playing) {
+      const w = this.world;
+      const p = this.press;
+      const tNow = performance.now() / 1000;
+      let price = null, extra = null;
+      if (this.armed === 'clear') price = this.clearPrice;
+      else if (this.armed === 'ring' && p && p.kind === 'ring') price = w.movePrice('ring', { x: p.x, y: p.y }, p.type);
+      else if (this.armed === 'line' && p && p.kind === 'line') {
+        const path = p.end ? [...p.path, p.end] : p.path;
+        price = w.movePrice('line', { path }, p.type);
+        extra = { path, hw: 1.5 * w.brushCells(p.type) };
+      }
+      over = union(over, drawPreview(ctx, w, L, dpr, tNow, this.armed, price, extra, reduced));
+    }
+    over = union(over, this.bugsR.draw(ctx, this.world, L, dpr, frameDt, { reduced, paused: !playing }));
+    if (playing) over = union(over, this._drawHand(ctx, dpr));
+    this.lastOverlayBox = over;
+    if (playing) {
+      this._warnings();
+      this.toolbar.update(this.prices, this.world.energy.frac, this.armed);
       this.motes.update(frameDt);
       const p = this.world.pointer;
       audio.updateRustle(!!p && p.idle < 0.1, p ? p.speed : 0, this.world.brushH);
@@ -421,6 +850,8 @@ export class Game {
     if (!this.world) return Promise.reject(new Error('No field loaded'));
     if (!PROFILES[profile]) return Promise.reject(new Error(`Unknown profile ${profile}`));
     const pt = pointerType || (matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse');
+    if (getState() === 'hint') this.dismissHint();
+    this.pendingHint = null;
     this.input.release();
     this.world.pointerUp();
     this.autopilot = new Autopilot(this.world, profile, { pointerType: pt });

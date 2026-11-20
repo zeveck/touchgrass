@@ -8,12 +8,20 @@ function watchErrors(page) {
   const errors = [];
   page.on('pageerror', (err) => errors.push(String(err)));
   page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
-  page.on('requestfailed', (r) => errors.push(`request failed: ${r.url()}`));
+  // A load the browser cancels because the page is navigating away (reload)
+  // isn't a failure of the game; any other failed request is.
+  page.on('requestfailed', (r) => {
+    const why = r.failure()?.errorText || '';
+    if (/cancel|abort/i.test(why)) return;
+    errors.push(`request failed: ${r.url()} (${why})`);
+  });
   return errors;
 }
 
+// Milestone 1/2 checks of sweeping, art and sound alone: no hint cards and
+// no bugs (dev-only ?hints=0&bugs=0; bugs and hints have e2e/bugs-moves.spec.mjs).
 async function openField(page, n) {
-  await page.goto(`/?dev=1&level=${n}`);
+  await page.goto(`/?dev=1&level=${n}&hints=0&bugs=0`);
   await expect.poll(() => page.evaluate(() => window.__game?.info().field)).toBe(n);
   await page.evaluate(() => window.__game.ready());
 }

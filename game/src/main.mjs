@@ -37,7 +37,7 @@ function installDebugHook(game) {
     setState,
     onChange,
     // Detailed state (the screen string stays on `state` for the original e2e).
-    info: () => ({ screen: getState(), ...(game.world ? game.world.summary() : {}), card: game.cards.kind }),
+    info: () => ({ screen: getState(), ...(game.world ? game.world.summary() : {}), card: game.cards.kind, armed: game.armed }),
     loadLevel,
     goToLevel: loadLevel,
     levels: () => LEVEL_COUNT,
@@ -64,6 +64,19 @@ function installDebugHook(game) {
     ready: () => game.whenReady(),
     frames: () => game.frameLog,
     setTuftSource: (kind) => game.setTuftSource(kind),
+    // Bugs: list them, add one at a cell (r, c), remove them all.
+    bugs: () => (game.world ? game.world.bugs.list.map((b) => ({
+      id: b.id, sp: b.sp, hostile: b.hostile, state: b.state, x: +b.x.toFixed(3), y: +b.y.toFixed(3),
+      angerT: +b.angerT.toFixed(3), cool: +b.cool.toFixed(3), petted: b.petted, pets: b.pets,
+      page: game.layout ? { x: game.layout.field.x + b.x * game.layout.cell, y: game.layout.field.y + b.y * game.layout.cell } : null,
+    })) : []),
+    spawn(sp, r, c) { const b = game.world.bugs.spawn(sp, c + 0.5, r + 0.5); return b.id; },
+    clearBugs() { game.world.bugs.clear(); },
+    // Freeze a bug where it is (so a test can tap it): speed 0 via idle.
+    holdBug(id, s = 30) { const b = game.world.bugs.list.find((x) => x.id === id); if (b) { b.state = 'idle'; b.t = s; } return !!b; },
+    get armed() { return game.armed; },
+    moves: () => ({ armed: game.armed, prices: { ...game.prices }, fired: game.world ? { ...game.world.movesFired } : null }),
+    hint: () => (game.hint ? game.hint.id : null),
     // Cell centre in page CSS px (for tests that drag over specific cells).
     cellToPage(r, c) {
       const L = game.layout;
@@ -82,9 +95,15 @@ function mount() {
   document.addEventListener('click', (e) => {
     if (e.target instanceof Element && e.target.closest('button')) audio.play('tap');
   }, true);
-  const game = new Game({ tufts: params.get('tufts') === 'code' ? 'code' : 'png' });
+  const devHost = isDevHost();
+  const game = new Game({
+    tufts: params.get('tufts') === 'code' ? 'code' : 'png',
+    // Dev only: ?hints=0 skips hint cards, ?bugs=0 opens fields with no bugs.
+    hints: !(devHost && params.get('hints') === '0'),
+    bugs: !(devHost && params.get('bugs') === '0'),
+  });
 
-  if (isDevHost()) installDebugHook(game);
+  if (devHost) installDebugHook(game);
 
   const renderFor = (state) => {
     if (state === 'title') {
