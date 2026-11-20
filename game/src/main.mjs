@@ -9,6 +9,7 @@ import { renderTitle } from './ui/title.mjs';
 import { Game } from './game.mjs';
 import { LEVELS, LEVEL_COUNT } from './sim/levels.mjs';
 import { STEP } from './loop.mjs';
+import { audio } from './audio.mjs';
 
 function isDevHost() {
   const host = location.hostname;
@@ -57,7 +58,10 @@ function installDebugHook(game) {
     solve: (profile, opts) => game.solve(profile, opts),
     get fps() { return game.stats().fps; },
     stats: () => game.stats(),
+    audioState: () => audio.state(),
     _game: game,   // dev-only escape hatch for profiling
+    // Resolves once the painted art (tufts, scene, soil) for the field is in.
+    ready: () => game.whenReady(),
     frames: () => game.frameLog,
     setTuftSource: (kind) => game.setTuftSource(kind),
     // Cell centre in page CSS px (for tests that drag over specific cells).
@@ -73,14 +77,19 @@ function mount() {
   if (!root) return;
 
   const params = new URLSearchParams(location.search);
-  const game = new Game();
-  if (params.get('tufts') === 'png') game.setTuftSource('png');
+  audio.install();
+  // Every button taps (a soft sound on press).
+  document.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('button')) audio.play('tap');
+  }, true);
+  const game = new Game({ tufts: params.get('tufts') === 'code' ? 'code' : 'png' });
 
   if (isDevHost()) installDebugHook(game);
 
   const renderFor = (state) => {
     if (state === 'title') {
       renderTitle(root);
+      audio.setMusic('title');
     } else {
       // Gameplay draws in its own layer (#game); other screens land later.
       root.innerHTML = '';

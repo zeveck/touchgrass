@@ -13,11 +13,12 @@
 import { buildField, getLevel, LEVEL_COUNT } from './levels.mjs';
 import { fieldSeed } from './rng.mjs';
 import { Grid, speedFactor, SWEEP_FLAT, SWEEP_LOOSEN } from './grid.mjs';
-import { brushRadiusPx, stampCapsule } from './brush.mjs';
+import { brushRadiusPx, stampCapsuleWake } from './brush.mjs';
 import { Energy, meterLine, earnsHeadStart } from './energy.mjs';
 
 export const STEP = 1 / 60;
-export const SWEEP_IDLE_S = 0.4;   // a pointer that hasn't moved for 0.4 s doesn't sweep
+export const SWEEP_IDLE_S = 0.4;
+export const WAKE_BEND = 0.55;     // bend at the brush's edge, fading to 0 across the wake   // a pointer that hasn't moved for 0.4 s doesn't sweep
 const SPEED_TAU = 0.06;            // speed smoothing, seconds
 
 export class World {
@@ -41,6 +42,7 @@ export class World {
     this.collectFx = collectFx;
     this.fx = [];             // renderer events: ['flat', i, gain] | ['loosen', i] | ['bend', i] | ['stand', i]
     this.flatCount = 0;
+    this.brushH = 0;          // mean height under the brush at the last stamp (for the rustle)
     this.loosenCount = 0;
   }
 
@@ -89,7 +91,17 @@ export class World {
     const sf = speedFactor(speedPx);
     const grid = this.grid, energy = this.energy, fx = this.fx, collect = this.collectFx;
     const sid = this.strokeId;
-    stampCapsule(grid.W, grid.H, x0 / cell, y0 / cell, x1 / cell, y1 / cell, R, (i) => {
+    // The wake: grass up to max(0.9 cells, 0.7 R) beyond the brush parts
+    // around the finger, leaning away from the path and a little along it.
+    const Rw = R + Math.max(0.9, 0.7 * R);
+    let hSum = 0, hN = 0;
+    const wake = (i, f, nx, ny) => {
+      let wx = nx + 0.5 * ux, wy = ny + 0.5 * uy;
+      const m = Math.hypot(wx, wy) || 1;
+      grid.nudge(i, wx / m, wy / m, WAKE_BEND * f);
+    };
+    stampCapsuleWake(grid.W, grid.H, x0 / cell, y0 / cell, x1 / cell, y1 / cell, R, Rw, (i) => {
+      if (grid.valid[i]) { hSum += grid.h[i]; hN++; }
       const res = grid.sweepCell(i, sid, sf, ux, uy);
       if (res === SWEEP_FLAT) {
         energy.add(grid.lastGain);
@@ -99,7 +111,9 @@ export class World {
         this.loosenCount++;
         if (collect) fx.push(['loosen', i]);
       }
-    });
+    }, wake);
+    // For the rustle: how tall the grass under the brush was.
+    if (hN > 0) this.brushH = hSum / hN;
   }
 
   step(dt = STEP) {

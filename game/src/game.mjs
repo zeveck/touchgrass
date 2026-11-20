@@ -13,15 +13,22 @@ import { drawStatic } from './render/edge.mjs';
 import { GrassRenderer } from './render/grass.mjs';
 import { codePainter, makePngSource } from './render/atlas.mjs';
 import { Motes } from './render/particles.mjs';
+import { Bloom } from './render/bloom.mjs';
 import { PointerInput } from './input/pointer.mjs';
 import { Hud } from './ui/hud.mjs';
 import { Cards } from './ui/cards.mjs';
+import { audio } from './audio.mjs';
+import { TUFT_URLS, FLOWER_URLS, SOIL_URL, sceneUrl, loadAll, imageNow } from './assets.mjs';
+
+function vibrate(ms) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* not supported */ }
+}
 
 const GAME_STATES = new Set(['playing', 'paused', 'level-won', 'ending', 'hint']);
-const WIN_DELAY_S = 0.9;     // let the last motes land before the card
+const WIN_DELAY_S = 2.4;     // the bloom plays before the card
 
 export class Game {
-  constructor({ tuftSource } = {}) {
+  constructor({ tufts = 'png' } = {}) {
     const root = document.createElement('div');
     root.id = 'game';
     root.className = 'game-root';
@@ -29,12 +36,24 @@ export class Game {
     document.body.appendChild(root);
     this.root = root;
     this.cv = createCanvases(root);
-    this.hud = new Hud(root, { onPause: () => this.pause() });
+    this.hud = new Hud(root, { onPause: () => this.pause(), onMute: () => audio.toggleMute() });
+    this.hud.setMuted(audio.muted);
+    audio.onChange((st) => this.hud.setMuted(st.muted));
+    this.hud.onMilestone = (m) => { if (m < 4) audio.milestone(m); };
+    this.hud.onWhole = () => audio.wholeFieldTing();
     this.cards = new Cards(root);
     this.input = new PointerInput(this.cv.live);
     this.input.attach();
-    this.grass = new GrassRenderer(tuftSource || codePainter);
+    // Painted tufts by default; the code painter draws until they've loaded
+    // (and stays, with ?tufts=code).
+    this.grass = new GrassRenderer(codePainter);
+    this.tuftsReady = tufts === 'png'
+      ? this.setTuftSource('png') : Promise.resolve('code');
     this.motes = new Motes();
+    this.art = {};
+    this.artReady = Promise.resolve();
+    // Preload what the first fields need while the title shows.
+    loadAll([SOIL_URL, ...FLOWER_URLS, 'assets/ui/flower-petal.png', sceneUrl('morning', true), sceneUrl('morning', false)]).catch(() => {});
     this.world = null;
     this.layout = null;
     this.n = 0;
@@ -83,6 +102,7 @@ export class Game {
   _onState(next, prev) {
     this.root.hidden = !GAME_STATES.has(next);
     this.dirty = true;
+    this._audioFor(next);
     if (next === 'playing') {
       if (prev === 'title' || prev === 'challenge' || prev === 'map' || !this.world) {
         this.open(this.pendingField || 1);
@@ -119,9 +139,34 @@ export class Game {
     }
   }
 
+  // Music, ambience and the rustle for a screen.
+  _audioFor(s) {
+    if (s === 'playing' || s === 'paused' || s === 'level-won' || s === 'hint') {
+      if (this.world) audio.setMusic(this.world.spec.time);
+      audio.setAmbience('meadow');
+      audio.duck(s === 'paused');
+      audio.setRustle(s === 'playing');
+    } else if (s === 'ending') {
+      audio.setMusic('golden');
+      audio.setAmbience('dusk');
+      audio.duck(false);
+      audio.setRustle(false);
+    } else {
+      audio.setMusic('title');
+      audio.setAmbience(null);
+      audio.duck(false);
+      audio.setRustle(false);
+    }
+  }
+
   _onKey(e) {
     const s = getState();
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((e.key === 'm' || e.key === 'M') && !e.repeat) {
+      e.preventDefault();
+      audio.toggleMute();
+      return;
+    }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (s === 'playing') { e.preventDefault(); this.pause(); }
       else if (s === 'paused') { e.preventDefault(); this.resume(); }
@@ -172,14 +217,17 @@ export class Game {
     this.input.drain();
     this.autopilot = null;
     this.winT = null;
+    this.bloom = null;
+    this.lastTouch = null;
     this.motes.clear();
     this.grass.prepare(this.world, this.layout, this.layout.dpr);
-    drawStatic(this.cv.bgCtx, spec, this.layout);
+    this._loadArt();
     this.hud.setField(spec, n);
     this.hud.layout(this.layout);
     this.dirty = true;
     if (headStart) this.hud.showToast('Head start: +15%');
     this.root.dataset.field = String(n);
+    if (getState() === 'playing') audio.setMusic(spec.time);
     return this.world;
   }
 
@@ -189,9 +237,32 @@ export class Game {
     this.layout = resizeCanvases(this.cv, spec.w, spec.h);
     this.world.setLayout(this.layout);
     this.grass.prepare(this.world, this.layout, this.layout.dpr);
-    drawStatic(this.cv.bgCtx, spec, this.layout);
+    this._loadArt();
     this.hud.layout(this.layout);
     this.dirty = true;
+  }
+
+  // The static layer's pictures for this field and orientation: draw now with
+  // whatever is loaded, and again once everything has arrived.
+  _loadArt() {
+    const spec = this.world.spec;
+    const urls = [sceneUrl(spec.time, this.layout.portrait), SOIL_URL, ...FLOWER_URLS];
+    const pick = () => ({ scene: imageNow(urls[0]), soil: imageNow(urls[1]), flowers: FLOWER_URLS.map(imageNow) });
+    this.art = pick();
+    drawStatic(this.cv.bgCtx, spec, this.layout, this.art);
+    const world = this.world, layout = this.layout;
+    this.artReady = loadAll(urls).then(() => {
+      if (this.world !== world || this.layout !== layout) return;
+      this.art = pick();
+      drawStatic(this.cv.bgCtx, spec, this.layout, this.art);
+    }).catch((e) => console.warn('art:', e.message));
+    // Warm up the next time of day's scene in the background.
+    const next = this.n < LEVEL_COUNT ? getLevel(this.n + 1).time : null;
+    if (next && next !== spec.time) loadAll([sceneUrl(next, this.layout.portrait)]).catch(() => {});
+  }
+
+  whenReady() {
+    return Promise.all([this.tuftsReady, this.artReady]).then(() => true);
   }
 
   _showError() {
@@ -216,11 +287,14 @@ export class Game {
       if (ev.kind === 'down') {
         w.pointerDown(ev.x - fx, ev.y - fy, ev.type);
         this.lastInputT = ev.t;
+        this.lastTouch = { x: ev.x, y: ev.y };
+        vibrate(8);
       } else if (ev.kind === 'move') {
         if (!w.pointer) continue;
         const dt = Math.max(0.001, ev.t - this.lastInputT);
         this.lastInputT = ev.t;
         w.pointerMove(ev.x - fx, ev.y - fy, dt);
+        this.lastTouch = { x: ev.x, y: ev.y };
       } else if (ev.kind === 'up') {
         w.pointerUp();
       }
@@ -248,6 +322,15 @@ export class Game {
         this.input.release();
         this.autopilot = null;
         if (w.headStartEarned) this.pendingHeadStart = { field: this.n + 1 };
+        audio.bloomArpeggio();
+        const L = this.layout;
+        const origin = this.lastTouch || { x: L.field.x + L.field.w / 2, y: L.field.y + L.field.h / 2 };
+        this.bloom = new Bloom(w, L, origin, {
+          flowers: FLOWER_URLS.map(imageNow),
+          petal: imageNow('assets/ui/flower-petal.png'),
+          reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        });
+        audio.updateRustle(false, 0, 0);
         if (this.solveResolve) { const r = this.solveResolve; this.solveResolve = null; r(w.summary()); }
       }
       this.winT += dt;
@@ -269,6 +352,9 @@ export class Game {
         this.motes.spawn(x, y, tgt.x, tgt.y, e[2] > 1.3 ? 2 : 1);
       } else if (kind === 'stand') {
         this.grass.popCell(i);
+      } else if (kind === 'loosen') {
+        audio.twang();
+        if (performance.now() - (this.lastLoosenBuzz || 0) > 120) { this.lastLoosenBuzz = performance.now(); vibrate(10); }
       }
     }
   }
@@ -290,6 +376,11 @@ export class Game {
     let cx0 = L.field.x * dpr - spill, cy0 = L.field.y * dpr - spill;
     let cx1 = (L.field.x + L.field.w) * dpr + spill, cy1 = (L.field.y + L.field.h) * dpr + spill * 0.5;
     const mb = this.lastMoteBox;
+    const bb = this.bloom ? this.bloom.box() : null;
+    if (bb) {
+      cx0 = Math.min(cx0, bb.x0 * dpr); cy0 = Math.min(cy0, bb.y0 * dpr);
+      cx1 = Math.max(cx1, bb.x1 * dpr); cy1 = Math.max(cy1, bb.y1 * dpr);
+    }
     if (mb) {
       cx0 = Math.min(cx0, mb.x0 * dpr); cy0 = Math.min(cy0, mb.y0 * dpr);
       cx1 = Math.max(cx1, mb.x1 * dpr); cy1 = Math.max(cy1, mb.y1 * dpr);
@@ -299,8 +390,16 @@ export class Game {
     this._consumeFx();
     const whole = this.world.grid.wholeField();
     const shimmer = whole >= 0.9 && whole < 1 ? 0.5 + 0.5 * Math.sin(performance.now() / 260) : 0;
-    this.grass.draw(ctx, this.world, L, dpr, s === 'playing' ? frameDt : 0, shimmer);
-    if (s === 'playing') this.motes.update(frameDt);
+    this.grass.draw(ctx, this.world, L, dpr, s === 'playing' ? frameDt : 0, shimmer, this.bloom);
+    if (this.bloom) {
+      if (s === 'playing') this.bloom.update(frameDt);
+      this.bloom.draw(ctx, dpr);
+    }
+    if (s === 'playing') {
+      this.motes.update(frameDt);
+      const p = this.world.pointer;
+      audio.updateRustle(!!p && p.idle < 0.1, p ? p.speed : 0, this.world.brushH);
+    }
     this.lastMoteBox = this.motes.draw(ctx, dpr);
     if (this.motes.arrived) { this.motes.arrived = 0; this.hud.pulse(); }
     this.hud.update(this.world.energy.frac, whole, this.world.grid.untouchedLeft(), frameDt);
@@ -342,12 +441,11 @@ export class Game {
   }
 
   setTuftSource(kind) {
-    const src = kind === 'png'
-      ? makePngSource({ default: 'assets/tufts/default.png', stiff: 'assets/tufts/stiff.png' })
-      : codePainter;
+    const src = kind === 'png' ? makePngSource(TUFT_URLS) : codePainter;
     return src.ready.then(() => {
       this.grass.setSource(src);
       if (this.world) this.grass.prepare(this.world, this.layout, this.layout.dpr);
+      this.dirty = true;
       return src.name;
     });
   }

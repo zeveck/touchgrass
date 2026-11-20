@@ -11,17 +11,26 @@ const RING_R = 15;
 const RING_C = 2 * Math.PI * RING_R;
 
 export class Hud {
-  constructor(parent, { onPause }) {
+  constructor(parent, { onPause, onMute }) {
     const el = document.createElement('div');
     el.className = 'hud';
     el.setAttribute('data-testid', 'hud');
     el.innerHTML = `
       <div class="hud-main">
         <div class="hud-name" data-testid="hud-field-name"></div>
-        <div class="hud-meter" data-testid="hud-meter" role="meter" aria-label="Energy" aria-valuemin="0" aria-valuemax="100">
-          <div class="hud-meter-fill"></div>
-          <div class="hud-meter-line" title="The line: fill the meter to here"></div>
-          <span class="hud-meter-pct"></span>
+        <div class="hud-meter-row">
+          <div class="hud-meter" data-testid="hud-meter" role="meter" aria-label="Energy" aria-valuemin="0" aria-valuemax="100">
+            <div class="hud-meter-fill"></div>
+            <div class="hud-meter-line" title="The line: fill the meter to here"></div>
+            <span class="hud-meter-pct"></span>
+          </div>
+          <div class="hud-flower" data-testid="hud-flower" aria-hidden="true">
+            <img class="petal p0" src="assets/ui/flower-petal.png" alt="">
+            <img class="petal p1" src="assets/ui/flower-petal.png" alt="">
+            <img class="petal p2" src="assets/ui/flower-petal.png" alt="">
+            <img class="petal p3" src="assets/ui/flower-petal.png" alt="">
+            <img class="centre" src="assets/ui/flower-centre.png" alt="">
+          </div>
         </div>
       </div>
       <div class="hud-leaf" data-testid="hud-whole" title="Whole field touched">
@@ -32,9 +41,14 @@ export class Hud {
         </svg>
         <span class="hud-leaf-text"></span>
       </div>
-      <button type="button" class="btn icon hud-pause" data-testid="btn-pause" aria-label="Pause">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5"></rect><rect x="14" y="5" width="4" height="14" rx="1.5"></rect></svg>
-      </button>`;
+      <div class="hud-buttons">
+        <button type="button" class="btn icon hud-mute" data-testid="btn-mute" aria-label="Sound on" aria-pressed="false">
+          <img src="assets/ui/sound-on.png" alt="" class="icon-on"><img src="assets/ui/sound-off.png" alt="" class="icon-off">
+        </button>
+        <button type="button" class="btn icon hud-pause" data-testid="btn-pause" aria-label="Pause">
+          <img src="assets/ui/pause.png" alt="">
+        </button>
+      </div>`;
     const live = document.createElement('div');
     live.className = 'sr-only';
     live.setAttribute('role', 'status');
@@ -58,6 +72,9 @@ export class Hud {
     this.leafEl = el.querySelector('.hud-leaf');
     this.leafText = el.querySelector('.hud-leaf-text');
     el.querySelector('.hud-pause').addEventListener('click', () => onPause());
+    this.muteBtn = el.querySelector('.hud-mute');
+    this.muteBtn.addEventListener('click', () => onMute && onMute());
+    this.flowerEl = el.querySelector('.hud-flower');
     this.last = {};
     this.milestone = 0;
     this.wholeAnnounced = false;
@@ -70,14 +87,17 @@ export class Hud {
     this.nameEl.textContent = `${n}. ${spec.name}`;
     this.milestone = 0;
     this.wholeAnnounced = false;
-    this.last = {};
+    const muted = this.last.muted;
+    this.last = { muted };
+    this.flowerEl.dataset.open = '0';
     this.el.dataset.time = spec.time;
   }
 
   layout(L) {
     const r = L.hud;
     const s = this.el.style;
-    s.left = `${r.x}px`; s.top = `${r.y}px`; s.width = `${r.w}px`; s.height = `${r.h}px`;
+    // Landscape: the column's panel fits its contents (no empty paper below).
+    s.left = `${r.x}px`; s.top = `${r.y}px`; s.width = `${r.w}px`; s.height = L.portrait ? `${r.h}px` : 'auto';
     this.el.classList.toggle('portrait', L.portrait);
     this.el.classList.toggle('landscape', !L.portrait);
     const t = this.toast.style;
@@ -116,6 +136,12 @@ export class Hud {
       if (m > this.milestone) {
         this.milestone = m;
         this.announce(`Energy ${m * 25}%`);
+        if (this.onMilestone) this.onMilestone(m);
+      }
+      if (m !== this.last.petals) {
+        // The meter's flower opens a petal at each quarter.
+        this.flowerEl.dataset.open = String(m);
+        this.last.petals = m;
       }
     }
     const wp = Math.floor(whole * 100);
@@ -128,6 +154,7 @@ export class Hud {
       if (whole >= 1 && !this.wholeAnnounced) {
         this.wholeAnnounced = true;
         this.announce('Whole field touched');
+        if (this.onWhole) this.onWhole();
       }
     }
     if (this.pulseT > 0) {
@@ -137,4 +164,12 @@ export class Hud {
   }
 
   show(on) { this.el.hidden = !on; }
+
+  setMuted(m) {
+    if (this.last.muted === m) return;
+    this.last.muted = m;
+    this.muteBtn.classList.toggle('muted', m);
+    this.muteBtn.setAttribute('aria-pressed', String(m));
+    this.muteBtn.setAttribute('aria-label', m ? 'Sound off' : 'Sound on');
+  }
 }

@@ -1,0 +1,5 @@
+{
+  "bee": {"hinge": [39, 56]},
+  "butterfly": {"hinge": [57, 69]},
+  "wasp": {"hinge": [49, 49]}
+}

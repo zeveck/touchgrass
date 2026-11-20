@@ -36,3 +36,31 @@ export function stampCapsule(W, H, x0, y0, x1, y1, R, fn) {
     }
   }
 }
+
+// Like stampCapsule, plus a wake: cells whose centre is within Rw (> R) but
+// outside R get wake(i, f, nx, ny), where f fades 1 -> 0 from R to Rw and
+// (nx, ny) is the unit vector from the path to the cell (zero on the path).
+export function stampCapsuleWake(W, H, x0, y0, x1, y1, R, Rw, fn, wake) {
+  const r0 = Math.max(0, Math.floor(Math.min(y0, y1) - Rw));
+  const r1 = Math.min(H - 1, Math.ceil(Math.max(y0, y1) + Rw));
+  const c0 = Math.max(0, Math.floor(Math.min(x0, x1) - Rw));
+  const c1 = Math.min(W - 1, Math.ceil(Math.max(x0, x1) + Rw));
+  const dx = x1 - x0, dy = y1 - y0;
+  const L2 = dx * dx + dy * dy;
+  const R2 = R * R, Rw2 = Rw * Rw;
+  for (let r = r0; r <= r1; r++) {
+    const cy = r + 0.5;
+    for (let c = c0; c <= c1; c++) {
+      const cx = c + 0.5;
+      let u = L2 > 0 ? ((cx - x0) * dx + (cy - y0) * dy) / L2 : 0;
+      if (u < 0) u = 0; else if (u > 1) u = 1;
+      const ex = cx - (x0 + u * dx), ey = cy - (y0 + u * dy);
+      const d2 = ex * ex + ey * ey;
+      if (d2 <= R2) fn(r * W + c);
+      else if (d2 <= Rw2) {
+        const d = Math.sqrt(d2);
+        wake(r * W + c, 1 - (d - R) / (Rw - R), ex / d, ey / d);
+      }
+    }
+  }
+}

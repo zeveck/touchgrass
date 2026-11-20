@@ -50,7 +50,7 @@
 - [x] Share design: page https://claude.ai/artifact/NdpRQDpGNQPA5vzhgZENoE (private until shared; slug af33e960-0e6d-46be-acaa-f471b827d155); 5 mock pictures + 2 composited frames, $0.83, all kept as final art
 - [x] Stop (`--plan-only`): next is `/gamegen --continue` (read the shared page's comments first)
 - [x] 4 Art, animation and audio: every asset on the list made and checked; ~$10.26 of $30 so far (design/ASSETS.md)
-- [ ] 5 Build: milestone 1 (playable core, shapes) IN PROGRESS (.gamegen/progress/build-m1.md)
+- [ ] 5 Build: M1 playable core done (dd94adb; all 15 fields solvable, tests pass; fps under 4× throttle ~27–30 on f15 phone). M2 art+sound IN PROGRESS (.gamegen/progress/build-m2.md). Art sheet deferred to after publishing (links to the live site).
 - [ ] 6 Play-test
 - [ ] 7 Final review
 - [ ] 8 Polish pass

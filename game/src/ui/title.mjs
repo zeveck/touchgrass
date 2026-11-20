@@ -5,16 +5,12 @@
 // and carry `data-testid` attributes per the Data-testid convention.
 
 import { setState } from '../state.mjs';
+import { hasProgress } from '../storage.mjs';
 
-const SAVE_KEY = 'touchgrass.v1';
-
+// Continue only when there's progress to continue (a saved setting such as
+// mute alone doesn't count).
 function hasSave() {
-  try {
-    if (typeof localStorage === 'undefined') return false;
-    return localStorage.getItem(SAVE_KEY) !== null;
-  } catch {
-    return false;
-  }
+  return hasProgress();
 }
 
 export function renderTitle(root) {

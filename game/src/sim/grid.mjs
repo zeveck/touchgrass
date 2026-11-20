@@ -76,6 +76,17 @@ export class Grid {
     this.bvx[i] = 0; this.bvy[i] = 0;
   }
 
+  // The wake of a stroke: grass just outside the brush leans away from it.
+  // Purely visual: nothing is touched, paid or flattened. Only raises a
+  // cell's bend (never fights a stronger one already there).
+  nudge(i, dx, dy, amt) {
+    if (!this.valid[i] || this.blocked[i]) return;
+    const m2 = this.bx[i] * this.bx[i] + this.by[i] * this.by[i];
+    if (m2 >= amt * amt) return;
+    this.bx[i] = dx * amt; this.by[i] = dy * amt;
+    this.bvx[i] = 0; this.bvy[i] = 0;
+  }
+
   // Sweep one cell with a stroke. (dx, dy) is the unit stroke direction.
   // `sf` is the speed factor (speedFactor()). Returns a SWEEP_* code; on
   // SWEEP_FLAT the energy gained is in this.lastGain.
