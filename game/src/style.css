@@ -520,7 +520,9 @@ html.reduce-motion .card-hint { animation: none; }
 }
 .hint-art img { display: block; }
 .ha-tuft { width: 72px; height: 72px; margin: 0 -8px; }
-.ha-tuft-flat { width: 64px; height: 64px; }
+/* (changed) Touched grass glows gold while it rests; a fresh mown stripe is a lighter green. */
+.ha-gold { filter: sepia(1) saturate(3.2) hue-rotate(-6deg) brightness(1.18) drop-shadow(0 0 6px rgba(255, 214, 110, 0.9)); }
+.ha-young { filter: brightness(1.12) saturate(1.1); transform: scale(0.9); transform-origin: 50% 100%; }
 .ha-bug { position: relative; display: block; width: 76px; height: 76px; }
 .ha-bug img { width: 76px; height: 76px; filter: drop-shadow(2px 5px 2px rgba(43, 42, 38, 0.25)); }
 .ha-bug.angry::before {

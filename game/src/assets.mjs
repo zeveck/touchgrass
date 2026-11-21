@@ -37,7 +37,6 @@ export const TUFT_URLS = Object.freeze({
   flowered: 'assets/tufts/flowered.png',
   stiff: 'assets/tufts/stiff.png',
   loosened: 'assets/tufts/loosened.png',
-  flat: 'assets/tufts/flat.png',
 });
 
 export const FLOWER_URLS = Object.freeze([

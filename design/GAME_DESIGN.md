@@ -108,6 +108,11 @@ progress, not scrubbing one patch, and they never stall a quick player.
   Touched grass never goes fully green again that field, so **untouched grass stays deep green** and you can
   see what's left. Untouched cells have `goldness = 0`. (The floor is 0.4, up from 0.25, so touched and
   untouched stay apart on 10 px tufts.)
+  - **(changed)** How these are *drawn* (rendering only; the rules above are unchanged): grass never lies down.
+    `h < 0.4` reads as "resting": the tuft stays standing and glows gold, fading to fresh green as it
+    recharges; at 0.4 it's "ready" again (a livelier green, with a little shimmer). Every touched cell keeps
+    a tiny blossom for the rest of the field, which is now the "you've been here" marker (see How the grass
+    is drawn). Reason, in the person's words: "the grass looks like my touching it is hurting it rather than improving it ... it looks like my touching it turns it to crab grass", and "it may be the 'lies down when you sweep it' is what makes it look like it died back". A flat, pale straw-coloured mat reads as trampled, dead grass whatever its colour, so touching must visibly make the grass *happier*.
 - **Grass types:**
 
 | Type | Energy multiplier | Regrow rate `r` (/s) | Stands up again (g = 1) | Full again (g = 1) | Look |
@@ -189,7 +194,7 @@ nothing.
 | # | Name | Time | Size, shape | What's new |
 |---|---|---|---|---|
 | 1 | The Back Lawn | Morning | 12×12 square | Sweeping and the meter. A ghost hand shows a stroke until you make your first one. |
-| 2 | Dew Patch | Morning | 13×13 square | Regrowth. **The field opens with a broad stripe already mown and growing back**, so you can watch it stand up. Hint: "Grass grows back. When it stands up, sweep it again." |
+| 2 | Dew Patch | Morning | 13×13 square | Regrowth. **The field opens with a broad stripe already mown and growing back**, so you can watch it grow. Hint **(changed, grass no longer lies down)**: "Swept grass glows gold while it rests. When it's green again, sweep it again." |
 | 3 | Clover Corner | Morning | 15×15 square | **Short grass** (stands up fast, worth less) and the first **ladybug**: tap to pet. The first friend joins the Bug Garden. The **whole-field badge** is explained. |
 | 4 | Long Meadow | Morning | 17×19 rectangle | **Tall grass** (slow to grow back, worth more). |
 | 5 | Buttercup Field | Morning | 19×19 square | **Flowered grass** (a little more energy, petals fly). End of morning: the light warms. |
@@ -476,10 +481,15 @@ instead of being silently ignored.
 
 Must-haves are marked ★.
 
-- ★ Grass bends away from the stroke, lies flat, and springs back with a slight overshoot as it regrows. When
-  regrowing grass reaches standing height, it pops up with a little spring, so "worth sweeping" is visible.
-- ★ Swept grass turns gold and fades back toward green as it grows, keeping a touch of gold (kept: one
-  green-to-gold scale for all types).
+- ★ **(changed)** Grass bends away from the stroke and springs back with a slight overshoot; it never lies
+  flat. When resting grass is ready again (`h` reaches 0.4) it gets a quick green-gold shimmer and a soft
+  stretch (shimmer only with reduced motion), so "worth sweeping" is visible.
+- ★ **(changed)** Swept grass lights up: a radiant honey-to-buttercup gold on the blade tips over a green
+  base, with a soft warm additive glow and, now and then, a tiny twinkle. The gold retreats to the tips and
+  fades to a fresh green as it recharges; ready again, it's a livelier green than untouched grass, and every
+  touched tuft keeps a tiny blossom (daisy, buttercup or pink clover). One scale for all types.
+  Reduced motion: no twinkles (the glow stays). Performance mode: only the glow baked into the atlas tiles,
+  fewer twinkles. Reason, in the person's words: "the grass looks like my touching it is hurting it rather than improving it ... it looks like my touching it turns it to crab grass", and "it may be the 'lies down when you sweep it' is what makes it look like it died back". A flat, pale straw-coloured mat reads as trampled, dead grass whatever its colour, so touching must visibly make the grass *happier*.
 - ★ Gold motes lift from flattened grass and fly to the meter; it pulses as they arrive. A taller tuft gives
   more motes.
 - ★ The rustle follows the stroke, pitched by grass height (`0.8 + 0.4 × h`, kept) and louder for faster
@@ -529,8 +539,15 @@ Must-haves are marked ★.
   so green and gold always stay apart:
   - The green ramp's hue never goes warmer than about 100° (yellow-green), at any time of day.
   - The gold ramp gets paler and warmer at golden hour, keeping its distance from the green.
-  - Milestone 1 test: a 10 px swatch of untouched, touched and regrowing grass under all three grades must
-    read as three different things.
+  - **(changed)** Four looks, all healthy: **untouched** (deep, calm green), **just touched** (radiant gold
+    over a green base, glowing), **recharging** (green with gold tips, glow fading) and **ready again**
+    (livelier green than untouched, with a blossom). A pre-mown stripe not yet touched is a light spring
+    green. The gold ramp is honey `#e7b84a` to buttercup `#f4d35e`, never desaturated straw, beige or
+    brown (unit-tested: hue 34 to 55°, saturation ≥ 0.6, lightness ≥ 0.45), and green-to-gold blends go
+    through hue, so they pass a fresh lime rather than olive.
+  - Milestone 1 test **(changed)**: a 10 px swatch of untouched, just touched, recharging and ready-again
+    grass under all three grades must read as four different things, none of them brown or dead-looking
+    (`design/screenshots/gold-change/after-swatch-10px.png`).
 - **Bugs read on green and gold.** Ink outlines on all of them; shadows are drawn only in code (one soft
   ellipse under each bug, never rotated with the sprite). The wasp is mostly black with thin yellow bands; the
   bee is fuzzy with broad dark bands and white wings. **(changed)** The caterpillar is plum-purple with cream
@@ -561,30 +578,35 @@ Must-haves are marked ★.
   - The *live* canvas is redrawn every frame: grass, then bugs and their shadows, then particles. Gold motes
     fly to the meter's on-screen position (read from its bounding box at layout) and fade as they arrive.
 - **Tuft art (A08):** seven imagegen2 tufts with the tuft line: the five types standing, loosened stiff, and
-  one shared flattened tuft. They're transparent, and made with the ladybug and scene anchors as references.
+  one shared flattened tuft. **(changed)** The flattened tuft is retired (moved to
+  `design/art-sources/tuft-flat-retired.png`): it read as dead grass. They're transparent, and made with the ladybug and scene anchors as references.
   - Each is cropped to its alpha box with Pillow and placed on a fixed 256×256 canvas with the base centre at
     (128, 236). The atlas code uses that one base point for every tuft.
-  - The flattened tuft is tinted per type in code (darker for tall, stubbier for short, flecked for flowered).
-    Loosened stiff grass flattens to the stiff tint.
+  - ~~The flattened tuft is tinted per type in code.~~ **(changed)** Every cell is drawn from its standing
+    tuft; loosened stiff grass keeps its bent-over tuft at standing height.
   - If they don't fit, a code painter draws tufts in the palette instead (tapered blades, dark ink edge,
     highlight).
 - **Atlas:** built when a field loads, in code.
-  - 11 shapes (6 standing: five types and loosened stiff; 5 flattened tints) × 5 goldness steps (0, 0.4, 0.6,
-    0.8, 1.0) = **55 images**. Each step is the green tuft graded for the time of day, blended with a gold
-    gradient map of the same tuft. Each cell uses its nearest step, so it's **one draw per cell**.
+  - **(changed)** 6 shapes (five types and loosened stiff) × 6 looks (untouched, ready again, resting, and
+    three gold-glow steps) = **36 images** (× 5 heights, 0.84 to 1.0, on small tiles). Each look gradient-maps
+    the tuft for the time of day; gold looks blend in the gold ramp by how far up the tuft a pixel is (gold
+    tips, green base) and bake a soft warm halo into the tile. Each cell uses its look, so it's **one draw
+    per cell**, plus a tiny blossom sprite on touched cells and one soft additive glow sprite per glowing
+    cell (skipped in performance mode).
   - Each image is `1.5 × cell size × min(dpr, 2)` square (tufts spill over the cell above), capped at 192
     device pixels. Worst case: 55 × 192² × 4 B ≈ 8 MB, only on fields 1 to 4 on a high-DPI desktop. On field 15
     on a phone the images are about 30 px (≈ 0.2 MB).
 - **Each frame**, for each valid cell, in row order from the top row down (so a tuft spilling upward is drawn
   over the row behind it):
-  - Pose: standing if `h ≥ 0.4`. Below that, the flattened tuft, growing from 70% to 100% of its size as `h`
-    goes from 0 to 0.4.
-  - Height: the standing tuft is scaled vertically to `0.6 + 0.4 × h`.
+  - Pose **(changed)**: always the standing tuft. Resting grass (`h < 0.4`) at 0.84 of full height;
+    standing grass from 0.88 to 1.0 with `h`. Never squat or lying down (unit-tested).
   - Bend: each cell has a bend vector `(bx, by)`, set to the stroke direction when swept or brushed. It returns
     to zero with a damped spring (ω = 10/s, ζ = 0.5) so it overshoots slightly. It's drawn as a shear about the
     tuft's base: `setTransform(s, 0, s × bx × 0.8, s × heightScale × (1 − 0.3 × |by|), baseX, baseY)`,
     where `s` is the pixel scale.
-  - Colour: the image for the cell's nearest goldness step.
+  - Look **(changed)**: untouched and standing → deep green; touched and standing → "ready again" green;
+    resting and touched → gold glow by goldness (1 just touched, fading by thirds to the spring green);
+    resting and untouched (pre-mown) → spring green. Touched cells get their blossom on top.
   - Untouched cells shimmer (a slight brightness pulse) once the whole-field badge passes 90%.
 - **Budget:** about 1,176 `drawImage` + 1,176 `setTransform` a frame on field 15. This is measured in milestone
   1 on a mid-range phone profile. If it's too slow, fully grown, still cells (no bend, no shimmer) are cached

@@ -8,7 +8,7 @@
 const VERSION = '__BUILD__';
 const FILES = [/*__FILES__*/];
 const PREFIX = 'touchgrass-';
-const LOCAL_VERSION = 'local-m4-1';
+const LOCAL_VERSION = 'local-m4-2';
 const LOCAL_FILES = [
   'apple-touch-icon.png',
   'assets/audio/amb-dusk.mp3',
@@ -66,7 +66,6 @@ const LOCAL_FILES = [
   'assets/textures/paper.jpg',
   'assets/textures/soil.jpg',
   'assets/tufts/default.png',
-  'assets/tufts/flat.png',
   'assets/tufts/flowered.png',
   'assets/tufts/loosened.png',
   'assets/tufts/short.png',

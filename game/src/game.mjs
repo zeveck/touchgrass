@@ -151,6 +151,7 @@ export class Game {
           // Resampled tufts are the main raster cost on slow devices: draw
           // them unsmoothed (they're small, so it barely shows).
           this.grass.smooth = false;
+          this.grass.perf = true;
           // The live canvas's pixels are the rest of it: draw the moving
           // layer at 1x (the painted static layer stays sharp). Measured on
           // field 15 at 390x844, 4x CPU throttle: ~35 fps -> ~55 fps.
@@ -1082,6 +1083,7 @@ export class Game {
     if (playing) for (const f of this.fxList) f.update(frameDt);
     this.fxList = this.fxList.filter((f) => !f.done());
     const reveal = this.fxList.find((f) => f.kind !== 'line') || null;
+    this.grass.reduced = reduced;
     this.grass.draw(ctx, this.world, L, dpr, playing ? frameDt : 0, shimmer, this.bloom, reveal);
     if (this.bloom) {
       if (playing) this.bloom.update(frameDt);

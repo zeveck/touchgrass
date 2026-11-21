@@ -29,7 +29,7 @@ export function hintArt(art) {
   wrap.setAttribute('aria-hidden', 'true');
   for (const a of art) {
     if (a.tuft) {
-      const img = el('img', `ha-tuft ha-tuft-${a.tuft}`);
+      const img = el('img', `ha-tuft ha-tuft-${a.tuft}${a.gold ? ' ha-gold' : ''}${a.young ? ' ha-young' : ''}`);
       img.src = `assets/tufts/${a.tuft}.png`;
       img.alt = '';
       wrap.append(img);
@@ -49,7 +49,9 @@ export function hintArt(art) {
       const sw = el('span', 'ha-swatch');
       for (let k = 0; k < 6; k++) {
         const t = el('img', 'ha-swatch-tuft');
-        t.src = k === 1 || k === 2 ? 'assets/tufts/flat.png' : 'assets/tufts/default.png';
+        // Swept tufts stand and glow gold (never a flattened mat).
+        t.src = 'assets/tufts/default.png';
+        if (k === 1 || k === 2) t.classList.add('ha-gold');
         t.alt = '';
         sw.append(t);
       }

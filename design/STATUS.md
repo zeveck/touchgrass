@@ -7,6 +7,8 @@
 3. "then --in-place, yes"
 4. `--plans`
 5. `--continue --feedback on --no-confirm --publish --art-sheet --budget 30`
+6. "This is mostly good, except the grass looks like my touching it is hurting it rather than improving it. I thought the grass would turn gold in a positive way, but as it is it looks like my touching it turns it to crab grass."
+7. "But it may be the \"lies down when you sweep it\" is what makes it look like it died back. It seems like why you used a squat graphic that looks like crab grass?"
 
 ## Settings
 
@@ -70,3 +72,7 @@ Design shared: https://claude.ai/artifact/NdpRQDpGNQPA5vzhgZENoE, as a page (sou
 About $10.26 of $30. Details in design/ASSETS.md.
 
 Art sheet: https://synapticnoise.com/plans/touch-grass/art/ (built from .gamegen/art-sheet/manifest.json)
+
+## Changes after publishing
+
+- 2026-11-21, requests 6-7: touched grass never lies down; it glows gold while it rests, turns green when ready, and keeps a tiny blossom for the field (rendering only; rules and pacing unchanged). Before/after in design/screenshots/gold-change/. Republished.
