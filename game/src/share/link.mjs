@@ -9,7 +9,8 @@
 import { cleanName } from '../prefs.mjs';
 import { fmtScore } from '../sim/score.mjs';
 
-export const SCORE_MAX = 999999;
+export { SCORE_MAX } from '../storage.mjs';
+import { SCORE_MAX } from '../storage.mjs';
 export const FALLBACK_NAME = 'A friend';
 export const CHALLENGE_KEYS = Object.freeze(['f', 's', 'n']);
 

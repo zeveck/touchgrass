@@ -170,3 +170,22 @@ Sims: `sim3.mjs` (rules, real polygons and mixes from plans/touch-grass.md, px l
 ### Decision
 
 Converged after the maximum 2 rounds: the one must-fix (B1, brisk players stalled by resets) was verified fixed by simulation (design/tuning/); every should-fix and nice finding has a recorded outcome. Remaining numbers are starting values for the build's headless solver.
+
+## Final review (Playtester, Bug hunter), 2026-11-21
+
+Checked and graded by the lead (by "The bar"):
+
+| Finding | From | Severity | Outcome |
+|---|---|---|---|
+| Grumpy bugs never bite a player who keeps moving; steering and the Ring don't matter | Playtester | should-fix | sent to fix: anger builds over passes, warning ≥1.5 s kept |
+| Move buttons show the gross price (Full Clear "34%") while the net cost is ~0–3%; stale price into field 15 | Playtester | should-fix | sent to fix: show net cost, refresh on load |
+| Sound keeps playing when the page is hidden | Bug hunter | should-fix | sent to fix: suspend/resume on visibility |
+| iOS: sound may not come back after an interruption | Bug hunter | should-fix | sent to fix: permanent resume-on-gesture, onstatechange |
+| Phone: head-start pill hidden behind hint card; card covers field 2's stripe | Playtester | should-fix | sent to fix |
+| Late fields feel like the same lap | Playtester | nice | follows from the bug fix |
+| Guest result has no Share | Playtester | nice | sent to fix |
+| Settings spacing, "Five-/Stone" break, music ducked in Settings | Playtester | nice | sent to fix |
+| Bidi controls and split emoji in challenge names; unclamped saved scores; old level saves; silent save failure; Esc in How to play | Bug hunter | nice | sent to fix |
+| iPhone silent switch mutes Web Audio | Bug hunter | nice | not changed: respecting the ringer switch is the expected default for a calm game |
+
+No must-fix findings, so no second review round.

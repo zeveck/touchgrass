@@ -1,6 +1,7 @@
 // e2e/bugs-moves.spec.mjs -- milestone 3 with real input: a hint card is
 // dismissed without sweeping (and never shows again), a ladybug is petted
-// with a real tap, an ant warns without biting when the finger moves away,
+// with a real tap, an ant warns without biting when the finger moves away
+// (its build-up fades, then it calms),
 // and each move is armed and fired from the toolbar / keys with real presses.
 
 import { test, expect } from '@playwright/test';
@@ -173,16 +174,24 @@ test('ant: sweeping close warns it (red ring); moving away calms it with no bite
   }
   await expect.poll(() => page.evaluate(() => window.__game.bugs()[0].state)).toBe('angry');
   const meterAtWarning = await page.evaluate(() => window.__game.info().meter);
-  // Keep sweeping, moving well away (out along the field) for 1.5 s.
+  // Keep sweeping, moving well away (out along the field). The build-up
+  // fades (it doesn't reset at once): the warning's arc winds back down until
+  // the ant calms.
   const far = await page.evaluate(() => window.__game.cellToPage(18, 3));
   await page.mouse.move(far.x, far.y, { steps: 6 });
+  const levels = [];
   const t1 = Date.now();
-  while (Date.now() - t1 < 1500) {
+  while (Date.now() - t1 < 9000) {
     k++;
     await page.mouse.move(far.x + 40 * Math.cos(k * 0.3), far.y + 10 * Math.sin(k * 0.3));
     await page.waitForTimeout(16);
+    const b = await page.evaluate(() => window.__game.bugs()[0]);
+    if (b.state !== 'angry') break;
+    levels.push(b.angerT);
   }
   await page.mouse.up();
+  expect(levels.length).toBeGreaterThan(3);
+  for (let j = 1; j < levels.length; j++) expect(levels[j]).toBeLessThanOrEqual(levels[j - 1] + 1e-9);
   await settle(page);
   const after = await page.evaluate(() => ({ b: window.__game.bugs()[0], i: window.__game.info() }));
   expect(after.b.state).not.toBe('angry');

@@ -22,7 +22,7 @@ export const HINTS = Object.freeze([
     text: 'Grass with flowers in it gives a little more, and its petals fly.',
     art: [{ tuft: 'flowered' }] },
   { id: 'ant-ring', field: 6, title: 'A grumpy ant, and the Ring',
-    text: 'It glows red when your finger comes close: move away, or it nips. New move: a Ring calms a grumpy bug and sweeps the grass around it.',
+    text: 'It glows red when your finger comes close, and gets grumpier each time: steer away, or it nips. New move: a Ring calms a grumpy bug and sweeps the grass around it.',
     art: [{ bug: 'ant', angry: true }, { move: 'ring' }] },
   { id: 'snail', field: 7, title: 'A snail',
     text: 'Slow and friendly. Tap it to say hello. Two ladybugs live here too.',

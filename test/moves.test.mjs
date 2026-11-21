@@ -16,7 +16,7 @@ import { T_STIFF, MULT } from '../game/src/sim/types.mjs';
 import { STAND_H } from '../game/src/sim/grid.mjs';
 import { runField } from '../game/src/sim/solver.mjs';
 import {
-  unlockedMoves, MOVE_UNLOCK, ringRadiusCells, lineHalfWidthCells, linePath, priceOf,
+  unlockedMoves, MOVE_UNLOCK, ringRadiusCells, lineHalfWidthCells, linePath, priceOf, priceLabel,
 } from '../game/src/sim/moves.mjs';
 
 function layoutFor(n, vw = 1280, vh = 800) {
@@ -259,6 +259,65 @@ test('moves: typical prices are a few percent for the Ring and Line, at most 1/k
     const w = new World(n, layoutFor(n), { bugs: false });
     const c = w.typicalPrice('clear', 'mouse');
     assert.ok(Math.abs(c - 1 / getLevel(n).k) < 1e-9, `clear field ${n} ${c}`);
+  }
+});
+
+test('moves: the net price shown ("free" / "−N%") is exactly what the meter loses when the move fires', () => {
+  assert.equal(priceLabel(0), 'free');
+  assert.equal(priceLabel(0.004), 'free');
+  assert.equal(priceLabel(0.031), '\u22123%');
+  assert.equal(priceLabel(0, { exact: true }), 'free');
+  assert.equal(priceLabel(0.004, { exact: true }), '\u22120.4%');
+  assert.equal(priceLabel(0.112, { exact: true }), '\u221211%');
+  const rng = mulberry32(42);
+  let checked = 0, notFree = 0;
+  for (const n of [6, 9, 11, 15]) {
+    for (let trial = 0; trial < 6; trial++) {
+      const w = new World(n, layoutFor(n, trial % 2 ? 390 : 1280, trial % 2 ? 844 : 800), { bugs: false });
+      if (trial) {
+        // Sweep, then let it grow back part way: half-grown standing grass is what costs.
+        scramble(w, rng, 2 + 4 * rng());
+        w.pointerUp();
+        for (let k = 0, m = Math.round((6 + 6 * rng()) / STEP); k < m; k++) w.step(STEP);
+      }
+      w.energy.set(0.9 * w.energy.line);
+      for (const kind of unlockedMoves(n)) {
+        const arg = kind === 'ring' ? { x: rng() * w.grid.W, y: rng() * w.grid.H }
+          : kind === 'line' ? { path: [[0.5, rng() * w.grid.H], [w.grid.W - 0.5, rng() * w.grid.H]] } : {};
+        const p = w.movePrice(kind, arg, 'mouse');
+        if (!p.affordable || !p.area.cells.length) continue;
+        const before = w.energy.value;
+        assert.equal(w.fireMove(kind, arg, 'mouse').fired, true);
+        const lost = (before - w.energy.value) / w.energy.line;
+        assert.ok(Math.abs(lost - p.lossFrac) < 1e-9, `field ${n} ${kind}: shown ${p.lossFrac}, lost ${lost}`);
+        assert.equal(priceLabel(lost, { exact: true }), priceLabel(p.lossFrac, { exact: true }));
+        if (p.lossFrac > 0) notFree++;
+        checked++;
+        w.energy.set(0.9 * w.energy.line);
+      }
+    }
+  }
+  assert.ok(checked > 20 && notFree > 5, `checked ${checked}, not free ${notFree}`);
+});
+
+test('moves: on full-grown grass every move is free; the button\'s typical net cost follows the grass as it stands', () => {
+  for (const n of [6, 9, 11]) {
+    const w = new World(n, layoutFor(n), { bugs: false });
+    for (let i = 0; i < w.grid.N; i++) if (w.grid.valid[i]) w.grid.h[i] = 1;
+    for (const k of unlockedMoves(n)) {
+      assert.equal(w.typicalLoss(k, 'mouse'), 0, `field ${n} ${k}`);
+      assert.equal(priceLabel(w.typicalLoss(k, 'mouse')), 'free');
+      // The full charge it needs on the meter is still there.
+      assert.ok(w.typicalPrice(k, 'mouse') > 0);
+    }
+    // Half-grown standing grass: the net cost is half the full charge.
+    for (let i = 0; i < w.grid.N; i++) if (w.grid.valid[i]) w.grid.h[i] = 0.5;
+    const clear = w.movePrice('clear', {}, 'mouse');
+    assert.ok(Math.abs(clear.lossFrac - clear.frac / 2) < 1e-9);
+    if (unlockedMoves(n).includes('clear')) assert.ok(Math.abs(w.typicalLoss('clear', 'mouse') - clear.lossFrac) < 1e-12);
+    const ring = w.typicalLoss('ring', 'mouse');
+    assert.ok(ring > 0 && Math.abs(ring - w.typicalPrice('ring', 'mouse') / 2) < 0.02 * w.typicalPrice('ring', 'mouse') + 1e-6,
+      `ring ${ring} vs half of ${w.typicalPrice('ring', 'mouse')}`);
   }
 });
 

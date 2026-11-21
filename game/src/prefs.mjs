@@ -21,9 +21,15 @@ const clamp01 = (v, d) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : d)
 
 // Clean a name for challenge links: control characters removed, trimmed,
 // at most 12 characters.
+// Control characters and the invisible bidi / zero-width marks (which could
+// flip or hide text round a name) are stripped; the length is counted in
+// code points, so an emoji is never cut in half.
 export function cleanName(v) {
-  // eslint-disable-next-line no-control-regex
-  return String(v ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, NAME_MAX).trim();
+  const s = String(v ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim();
+  return Array.from(s).slice(0, NAME_MAX).join('').trim();
 }
 
 export function normalize(raw) {

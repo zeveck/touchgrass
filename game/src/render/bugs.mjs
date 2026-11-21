@@ -9,7 +9,7 @@
 // sim, never changes it.
 
 import { loadAll, imageNow } from '../assets.mjs';
-import { SPECIES, bugSizePx, warnRingPx, WARN_MIN_S } from '../sim/insects.mjs';
+import { SPECIES, bugSizePx, warnRingPx, warnLevel } from '../sim/insects.mjs';
 
 const S_DIR = 'assets/sprites/';
 export const BUG_ART = Object.freeze({
@@ -145,7 +145,7 @@ export class BugRenderer {
     for (const b of order) {
       if (b.state !== 'angry') continue;
       const x = fx0 + (b.x + b.slideX) * cell, y = fy0 + (b.y + b.slideY) * cell;
-      const u = Math.min(1, b.angerT / WARN_MIN_S);
+      const u = warnLevel(b);   // the build-up, shown honestly (fades when you move away)
       const pulse = reduced ? 0.5 : 0.5 + 0.5 * Math.sin(this.t * Math.PI * 2 * (2 + 2 * u));
       const r = ringR * (1 + (reduced ? 0 : 0.05 * pulse));
       ctx.fillStyle = `rgba(230, 60, 40, ${0.08 + 0.1 * u})`;

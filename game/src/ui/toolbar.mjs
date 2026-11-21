@@ -1,11 +1,13 @@
 // ui/toolbar.mjs -- the moves toolbar (GAME_DESIGN.md "Screens", "Moves"):
 // bottom strip in portrait, right column in landscape. One 64 px button per
-// unlocked move with its icon, its price ("~N%"; Full Clear's exact price)
-// and its key (1 / 2 / 3). A button is disabled when the meter is below its
-// shown price (a tap then plays the soft low click) and pulses while armed.
+// unlocked move with its icon, its net price (what the meter really loses:
+// "free" on full-grown grass, else "−N%"; the Ring's and Line's for an
+// average spot, Full Clear's exact) and its key (1 / 2 / 3). A button is
+// disabled while the meter can't hold the move's full charge (it's paid, then
+// paid back; a tap then plays the soft low click) and pulses while armed.
 // Built once per field; values are only written when they change.
 
-import { MOVE_KINDS, MOVE_NAMES } from '../sim/moves.mjs';
+import { MOVE_KINDS, MOVE_NAMES, priceLabel } from '../sim/moves.mjs';
 
 const KEY_OF = { ring: '1', line: '2', clear: '3' };
 
@@ -54,17 +56,18 @@ export class Toolbar {
     this.el.classList.toggle('landscape', !L.portrait);
   }
 
-  // prices: { kind: share of the line }, exact: { clear: true }, meter: frac,
+  // prices: { kind: full charge, share of the line } (the meter must hold
+  // it), losses: { kind: net cost, share of the line } (shown), meter: frac,
   // armed: kind or null.
-  update(prices, meter, armed) {
+  update(prices, losses, meter, armed) {
     for (const k of this.kinds) {
       const b = this.btns[k];
       const p = prices[k] ?? 0;
-      const pct = Math.max(1, Math.round(p * 100));
-      // Full Clear shows its exact price; nothing standing costs nothing.
-      const exact = p <= 0 ? '0%' : p < 0.005 ? '<1%' : `${Math.round(p * 100)}%`;
-      const text = k === 'clear' ? exact : `~${pct}%`;
       const disabled = meter + 1e-9 < p;
+      // Usable: the net price ("free" / "−N%"). Not yet usable: what the meter
+      // must hold first, so a greyed-out button never reads "free".
+      const need = Math.max(1, Math.round(p * 100));
+      const text = disabled ? `needs ${need}%` : priceLabel(losses[k] ?? 0);
       const isArmed = armed === k;
       if (b.last.text !== text) {
         b.price.textContent = text;
@@ -75,8 +78,11 @@ export class Toolbar {
         b.el.setAttribute('aria-disabled', String(disabled));
         b.el.classList.toggle('armed', isArmed);
         b.el.setAttribute('aria-pressed', String(isArmed));
-        const how = k === 'clear' ? `costs ${exact} of the line` : `costs about ${pct}% of the line`;
-        b.el.setAttribute('aria-label', `${MOVE_NAMES[k]}, ${how}${disabled ? ', not enough energy yet' : ''}${isArmed ? ', armed' : ''} (key ${KEY_OF[k]})`);
+        const net = priceLabel(losses[k] ?? 0);
+        const netWords = net === 'free' ? 'free here' : `takes ${net.slice(1)} off the meter`;
+        const how = k === 'clear' ? netWords : `${netWords} on average`;
+        const needWords = disabled ? `, needs ${need}% on the meter` : '';
+        b.el.setAttribute('aria-label', `${MOVE_NAMES[k]}, ${how}${needWords}${isArmed ? ', armed' : ''} (key ${KEY_OF[k]})`);
         b.last.disabled = disabled; b.last.armed = isArmed; b.last.label = text;
       }
     }

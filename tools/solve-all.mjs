@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { runField, PACING_PROFILES } from '../game/src/sim/solver.mjs';
 import { LEVELS } from '../game/src/sim/levels.mjs';
 
-const profiles = [...PACING_PROFILES, 'careless'];
+const profiles = [...PACING_PROFILES, 'careless', 'lanes'];
 const rows = [];
 const totals = {};
 for (const l of LEVELS) {
@@ -22,8 +22,9 @@ for (const l of LEVELS) {
       row[`${lay}-${p}`] = r.won ? r.time : null;
       row[`${lay}-${p}-whole`] = r.whole;
       row[`${lay}-${p}-bites`] = r.bites;
+      row[`${lay}-${p}-warnings`] = r.warnings;
       row[`${lay}-${p}-petted`] = r.petted;
-      if (p !== 'careless') totals[`${lay}-${p}`] = (totals[`${lay}-${p}`] || 0) + (r.time ?? 900);
+      if (PACING_PROFILES.includes(p)) totals[`${lay}-${p}`] = (totals[`${lay}-${p}`] || 0) + (r.time ?? 900);
     }
   }
   row.parFromSolver = Math.ceil(Math.max(row['phone-average'], row['desktop-average']) / 5) * 5;
@@ -38,7 +39,7 @@ if (process.argv.includes('--write')) {
   const cols = rows.map((r) => r.n);
   const line = (label, f) => `| ${label} | ${rows.map(f).join(' | ')} |`;
   const md = [];
-  md.push('# Tuned pacing (milestone 3, with bugs; re-run in milestone 5)');
+  md.push('# Tuned pacing (milestone 3, with bugs; re-run in milestone 5 and after the final review)');
   md.push('');
   md.push('Written by `node tools/solve-all.mjs --write` from the game\'s own headless solver');
   md.push('(`game/src/sim/solver.mjs`), which drives the real sim (`game/src/sim/world.mjs`) with the');
@@ -57,6 +58,9 @@ if (process.argv.includes('--write')) {
   md.push('widens pet areas and bug margins, and each field is fitted to its shape\'s real bounds (field 14\'s');
   md.push('islands). Field 8\'s desktop average moved from 50 s to 50.1 s, so its par is 55 s (was 50 s).');
   md.push('Every other par is unchanged; every profile still wins every field at both layouts.');
+  md.push('**Final review:** biters\' anger now builds over repeated passes and they drift towards standing');
+  md.push('grass. Every profile still wins every field inside the design\'s windows; good play still takes 0');
+  md.push('bites; every par is unchanged (each is still the slower layout\'s average rounded up to 5 s).');
   md.push('');
   md.push(`| Field | ${cols.join(' | ')} |`);
   md.push(`|---|${cols.map(() => '---').join('|')}|`);
@@ -66,7 +70,14 @@ if (process.argv.includes('--write')) {
   for (const lay of ['phone', 'desktop']) {
     for (const p of profiles) md.push(line(`${p[0].toUpperCase()}${p.slice(1)}, ${lay} (s)`, (r) => r[`${lay}-${p}`] ?? 'stall'));
   }
-  md.push(line('Bites (careless, phone / desktop)', (r) => `${r['phone-careless-bites']} / ${r['desktop-careless-bites']}`));
+  md.push(line('Warnings / bites, good play (average), phone', (r) => `${r['phone-average-warnings']} / ${r['phone-average-bites']}`));
+  md.push(line('Warnings / bites, good play (average), desktop', (r) => `${r['desktop-average-warnings']} / ${r['desktop-average-bites']}`));
+  md.push(line('Warnings / bites, good scribble, phone', (r) => `${r['phone-scribble-warnings']} / ${r['phone-scribble-bites']}`));
+  md.push(line('Warnings / bites, good scribble, desktop', (r) => `${r['desktop-scribble-warnings']} / ${r['desktop-scribble-bites']}`));
+  md.push(line('Warnings / bites, lanes (no steering), phone', (r) => `${r['phone-lanes-warnings']} / ${r['phone-lanes-bites']}`));
+  md.push(line('Warnings / bites, lanes (no steering), desktop', (r) => `${r['desktop-lanes-warnings']} / ${r['desktop-lanes-bites']}`));
+  md.push(line('Warnings / bites, careless, phone', (r) => `${r['phone-careless-warnings']} / ${r['phone-careless-bites']}`));
+  md.push(line('Warnings / bites, careless, desktop', (r) => `${r['desktop-careless-warnings']} / ${r['desktop-careless-bites']}`));
   md.push(line('Friends petted (good play)', (r) => r['phone-average-petted']));
   md.push('');
   md.push('Totals over all 15 fields (minutes): ' +
@@ -74,10 +85,16 @@ if (process.argv.includes('--write')) {
   md.push('');
   md.push('Notes:');
   md.push('');
-  md.push('- **Bugs:** no pacing profile is ever bitten (the unit test asserts 0 bites). The **careless**');
-  md.push('  row is the "bitten" check: the scribbler with its steering off. It wanders into biters and gets');
-  md.push('  bitten now and then (a bite needs 1.5 s of sweeping inside the anger radius, which a quick');
-  md.push('  random scribble rarely does), and it still wins every field. It isn\'t in par or the totals.');
+  md.push('- **Bugs:** no pacing profile is ever bitten (the unit test asserts 0 bites). Two profiles never');
+  md.push('  steer and aren\'t in par or the totals: **lanes** (the average serpentine sweep, straight through');
+  md.push('  every biter) and **careless** (the scribbler). Since the final review, anger **builds up over');
+  md.push('  passes**: 0.4 each time a sweeping pointer comes into the radius, plus 0.75 per s inside, fading');
+  md.push('  0.3 per s away, full at 1.5; a bite also needs the warning shown for 1.5 s. So one pass warns and');
+  md.push('  going back and forth bites, at any speed. A lane sweep is warned on every bug field and not bitten');
+  md.push('  (also checked at 150 and 240 px/s); the careless scribbler is bitten now and then (mostly on the');
+  md.push('  phone, where its strokes keep crossing the same bugs); both still win every field. Biters also');
+  md.push('  drift towards standing grass, so later laps meet them somewhere new.');
+  md.push('  "Warnings" counts each time a biter starts a warning.');
   md.push('- Every field is won by every profile at both layouts; the unit test');
   md.push('  `test/solver.test.mjs` asserts this, plus the design\'s windows (average within 15% of par, fast');
   md.push('  and scribble within 1.5x par, calm within 2.5x par), fast never slower than average, and');

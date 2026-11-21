@@ -20,10 +20,10 @@ import { Cards } from './ui/cards.mjs';
 import { audio } from './audio.mjs';
 import { TUFT_URLS, FLOWER_URLS, SOIL_URL, sceneUrl, loadAll, imageNow } from './assets.mjs';
 import { vibrate } from './haptics.mjs';
-import { SPECIES, bugSizePx } from './sim/insects.mjs';
+import { SPECIES, bugSizePx, warnLevel } from './sim/insects.mjs';
 import { unlockedMoves, MOVE_KEYS, MOVE_NAMES, ARM_TIMEOUT_S } from './sim/moves.mjs';
 import { BugRenderer, bugPortrait } from './render/bugs.mjs';
-import { drawPreview, MoveFx } from './render/moves.mjs';
+import { drawPreview, previewLabel, MoveFx } from './render/moves.mjs';
 import { Toolbar } from './ui/toolbar.mjs';
 import { PressWait } from './input/tap.mjs';
 import { hintFor, hintsSeenList, checklistFor } from './hints.mjs';
@@ -119,7 +119,8 @@ export class Game {
     this.armT = 0;              // seconds armed (paused while the pointer is down)
     this.press = null;          // the gesture in progress (see _down)
     this.fxList = [];           // move effects in play
-    this.prices = {};           // the toolbar's shown prices (share of the line)
+    this.prices = {};           // each move's full charge (share of the line): the meter must hold it
+    this.losses = {};           // each move's net cost, shown on its button (refreshed twice a second)
     this.clearPrice = null;     // Full Clear's exact price (refreshed twice a second)
     this.priceT = 0;
     this.pendingHint = null;
@@ -319,8 +320,9 @@ export class Game {
 
   // Music, ambience and the rustle for a screen.
   _audioFor(s, prev) {
-    // Settings over a paused field keeps the field's (ducked) music.
-    if (s === 'settings' && prev === 'paused') return;
+    // Settings over a paused field keeps the field's music, un-ducked so the
+    // Music slider can be judged (back to pause ducks it again).
+    if (s === 'settings' && prev === 'paused') { audio.duck(false); return; }
     if (s === 'level-won' && this.challenge && this.challenge.guest) {
       // The guest-challenge result plays the title theme.
       audio.setMusic('title');
@@ -373,6 +375,12 @@ export class Game {
       e.preventDefault();
       this.disarm();
       audio.play('click', { rate: 0.85 });
+      return;
+    }
+    // Esc on How to play goes back to the pause card (like its Back button).
+    if (e.key === 'Escape' && s === 'paused' && this.cards.kind === 'howto') {
+      e.preventDefault();
+      this._showPauseCard();
       return;
     }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
@@ -463,7 +471,10 @@ export class Game {
     this.hud.layout(this.layout);
     this.toolbar.layout(this.layout);
     this.dirty = true;
-    if (headStart) this.hud.showToast('Head start: +15%');
+    // Shown once the field is really playing (after any hint card), so a card
+    // never hides it.
+    this.pendingToast = headStart ? 'Head start: +15%' : null;
+    this.hud.hideToast();
     this.root.dataset.field = String(n);
     if (getState() === 'playing') audio.setMusic(spec.time);
     return this.world;
@@ -493,8 +504,11 @@ export class Game {
 
   // ---- moves ------------------------------------------------------------------
 
-  // The toolbar's prices: the Ring's and Line's for an average spot (fixed per
-  // field and layout), Full Clear's exact price (refreshed twice a second).
+  // The toolbar's prices. The full charge (what the meter must hold to fire):
+  // the Ring's and Line's for an average spot (fixed per field and layout),
+  // Full Clear's exact one. The net cost shown on each button (what the meter
+  // really loses) comes from the grass as it stands, so it's worked out when
+  // a field loads and twice a second after (_livePrices).
   _typicalPrices() {
     const w = this.world;
     if (!w) return;
@@ -502,15 +516,25 @@ export class Game {
     for (const k of unlockedMoves(this.n)) {
       if (k !== 'clear') this.prices[k] = w.typicalPrice(k, this.ptype);
     }
-    this._clearPrice();
+    this._livePrices();
   }
 
-  _clearPrice() {
+  _livePrices() {
     const w = this.world;
-    if (!w || !unlockedMoves(this.n).includes('clear')) { this.clearPrice = null; return; }
-    this.clearPrice = w.movePrice('clear', {}, this.ptype);
-    this.prices.clear = this.clearPrice.frac;
     this.priceT = 0;
+    if (!w) return;
+    this.losses = {};
+    this.clearPrice = null;
+    for (const k of unlockedMoves(this.n)) {
+      if (k === 'clear') {
+        this.clearPrice = w.movePrice('clear', {}, this.ptype);
+        this.prices.clear = this.clearPrice.frac;
+        this.losses.clear = this.clearPrice.lossFrac;
+      } else this.losses[k] = w.typicalLoss(k, this.ptype);
+    }
+    // Written at once, so a hint card over a new field never shows the last
+    // field's prices.
+    this.toolbar.update(this.prices, this.losses, w.energy.frac, this.armed);
   }
 
   // A toolbar button or key 1 / 2 / 3: arm the move, or cancel it if armed.
@@ -569,7 +593,7 @@ export class Game {
     vibrate(12);
     this.armed = null;
     this.armT = 0;
-    this._clearPrice();
+    this._livePrices();
   }
 
   // Field-relative cells for a page point.
@@ -803,6 +827,10 @@ export class Game {
         return;
       }
     }
+    if (this.pendingToast) {
+      this.hud.showToast(this.pendingToast);
+      this.pendingToast = null;
+    }
     this._applyInput();
     this._tickPress();
     if (this.hoverOn && performance.now() / 1000 - this.hoverMoveT > SWEEP_IDLE_S) this._hoverEnd();
@@ -818,7 +846,7 @@ export class Game {
     const w = this.world;
     if (!w) return;
     this.priceT += dt;
-    if (this.priceT >= 0.5) this._clearPrice();
+    if (this.priceT >= 0.5) this._livePrices();
     if (w.won) {
       if (this.winT === null) {
         this.winT = 0;
@@ -919,13 +947,13 @@ export class Game {
   _warnings() {
     const w = this.world;
     let worst = null;
-    for (const b of w.bugs.list) if (b.state === 'angry' && (!worst || b.angerT > worst.angerT)) worst = b;
+    for (const b of w.bugs.list) if (b.state === 'angry' && (!worst || warnLevel(b) > warnLevel(worst))) worst = b;
     if (!worst || getState() !== 'playing') {
       audio.setBuzz(0);
       this.hud.setWarn(null);
       return;
     }
-    audio.setBuzz(0.05 + 0.95 * Math.min(1, worst.angerT / 1.5));
+    audio.setBuzz(0.05 + 0.95 * warnLevel(worst));
     const L = this.layout;
     const bx = L.field.x + worst.x * L.cell;
     const mb = this.hud.meterEl.getBoundingClientRect();
@@ -1019,13 +1047,14 @@ export class Game {
       const p = this.press;
       const tNow = performance.now() / 1000;
       let price = null, extra = null;
-      if (this.armed === 'clear') price = this.clearPrice;
+      if (this.armed === 'clear') price = w.movePrice('clear', {}, this.ptype);   // exact, every frame
       else if (this.armed === 'ring' && p && p.kind === 'ring') price = w.movePrice('ring', { x: p.x, y: p.y }, p.type);
       else if (this.armed === 'line' && p && p.kind === 'line') {
         const path = p.end ? [...p.path, p.end] : p.path;
         price = w.movePrice('line', { path }, p.type);
         extra = { path, hw: 1.5 * w.brushCells(p.type) };
       }
+      this.preview = { kind: this.armed, label: previewLabel(this.armed, price), lossFrac: price ? price.lossFrac : null };
       over = union(over, drawPreview(ctx, w, L, dpr, tNow, this.armed, price, extra, reduced));
     }
     over = union(over, this.bugsR.draw(ctx, this.world, L, dpr, frameDt, { reduced, paused: !playing }));
@@ -1033,7 +1062,7 @@ export class Game {
     this.lastOverlayBox = over;
     if (playing) {
       this._warnings();
-      this.toolbar.update(this.prices, this.world.energy.frac, this.armed);
+      this.toolbar.update(this.prices, this.losses, this.world.energy.frac, this.armed);
       this.motes.update(frameDt);
       const p = this.world.pointer;
       audio.updateRustle(!!p && p.idle < 0.1, p ? p.speed : 0, this.world.brushH);

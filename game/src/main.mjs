@@ -14,18 +14,19 @@ import { renderSettings } from './ui/settings.mjs';
 import { renderEnding, ENDING_FADE_MS } from './ui/ending.mjs';
 import { renderChallenge } from './ui/challenge.mjs';
 import { Screens } from './ui/screens.mjs';
-import { escapeModal, isModalOpen } from './ui/modal.mjs';
+import { escapeModal, isModalOpen, toast } from './ui/modal.mjs';
 import { scorecardDataUrl } from './ui/share.mjs';
 import { Game, reportOpen } from './game.mjs';
 import { LEVELS, LEVEL_COUNT } from './sim/levels.mjs';
 import { STEP } from './loop.mjs';
 import { audio } from './audio.mjs';
 import { go } from './nav.mjs';
-import { readSave, writeSave, isUnlocked } from './storage.mjs';
+import { readSave, writeSave, isUnlocked, onSaveFail } from './storage.mjs';
 import { watchMotion, onSettings } from './prefs.mjs';
 import { parseChallenge, hasChallengeParams, stripChallenge } from './share/link.mjs';
 import { loadAll } from './assets.mjs';
 import { CRAWL_URLS } from './render/titletoy.mjs';
+import { warnLevel } from './sim/insects.mjs';
 
 function isDevHost() {
   const host = location.hostname;
@@ -75,6 +76,8 @@ function installDebugHook(game) {
     get fps() { return game.stats().fps; },
     stats: () => game.stats(),
     audioState: () => audio.state(),
+    // Dev: stop the context the way an OS interruption does (a call, Siri).
+    audioInterrupt: () => (audio.ctx ? audio.ctx.suspend().then(() => audio.ctx.state) : Promise.resolve('none')),
     _game: game,   // dev-only escape hatch for profiling
     save: () => readSave(),
     report: () => game.reportState(),
@@ -95,7 +98,7 @@ function installDebugHook(game) {
     // Bugs: list them, add one at a cell (r, c), remove them all.
     bugs: () => (game.world ? game.world.bugs.list.map((b) => ({
       id: b.id, sp: b.sp, hostile: b.hostile, state: b.state, x: +b.x.toFixed(3), y: +b.y.toFixed(3),
-      angerT: +b.angerT.toFixed(3), cool: +b.cool.toFixed(3), petted: b.petted, pets: b.pets,
+      angerT: +b.angerT.toFixed(3), warnT: +b.warnT.toFixed(3), warn: +warnLevel(b).toFixed(3), cool: +b.cool.toFixed(3), petted: b.petted, pets: b.pets,
       page: game.layout ? { x: game.layout.field.x + b.x * game.layout.cell, y: game.layout.field.y + b.y * game.layout.cell } : null,
     })) : []),
     spawn(sp, r, c) { const b = game.world.bugs.spawn(sp, c + 0.5, r + 0.5); return b.id; },
@@ -103,7 +106,11 @@ function installDebugHook(game) {
     // Freeze a bug where it is (so a test can tap it): speed 0 via idle.
     holdBug(id, s = 30) { const b = game.world.bugs.list.find((x) => x.id === id); if (b) { b.state = 'idle'; b.t = s; } return !!b; },
     get armed() { return game.armed; },
-    moves: () => ({ armed: game.armed, prices: { ...game.prices }, fired: game.world ? { ...game.world.movesFired } : null }),
+    moves: () => ({
+      armed: game.armed, prices: { ...game.prices }, losses: { ...game.losses },
+      preview: game.armed && game.preview && game.preview.kind === game.armed ? { ...game.preview } : null,
+      fired: game.world ? { ...game.world.movesFired } : null,
+    }),
     hint: () => (game.hint ? game.hint.id : null),
     // Cell centre in page CSS px (for tests that drag over specific cells).
     cellToPage(r, c) {
@@ -165,6 +172,8 @@ function mount() {
 
   const params = new URLSearchParams(location.search);
   audio.install();
+  // Storage full or blocked: say so once, gently; the game carries on.
+  onSaveFail(() => toast('This browser isn\'t saving right now, so your meadow won\'t be remembered', 4200));
   watchMotion();
   // Every button taps (a soft sound on press).
   document.addEventListener('click', (e) => {

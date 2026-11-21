@@ -7,7 +7,9 @@
 //   scribble  700, random curving strokes of 1.5 s with 0.1 s lifts
 //   careless  the scribbler, ignoring the bugs: it never steers, so it gets
 //             bitten (the "bitten" check: even a careless player wins)
-// Every profile but "careless" plays well with bugs: it steers around
+//   lanes     the average serpentine sweep, straight through every biter
+//             (never steers, never pets): warned, rarely bitten
+// Every profile but "careless" and "lanes" plays well with bugs: it steers around
 // hostiles' anger radii (lifting and hopping past a biter in its lane, and
 // re-planning as they move), so good play is never bitten, and it pets each
 // friendly once (a tap between strokes).
@@ -20,7 +22,7 @@ import { World, STEP } from './world.mjs';
 import { computeLayout, LAYOUTS } from './layout.mjs';
 import { getLevel, shapeBounds } from './levels.mjs';
 import { mulberry32 } from './rng.mjs';
-import { angerRadiusPx } from './insects.mjs';
+import { angerRadiusPx, warnLevel } from './insects.mjs';
 
 export const PROFILES = Object.freeze({
   fast: Object.freeze({ kind: 'serp', v: 600, turn: 0.12 }),
@@ -28,6 +30,7 @@ export const PROFILES = Object.freeze({
   calm: Object.freeze({ kind: 'serp', v: 150, turn: 0.4 }),
   scribble: Object.freeze({ kind: 'scrib', v: 700, turn: 0.1, wiggle: 1.2, strokeLen: 1.5, hop: 0.25 }),
   careless: Object.freeze({ kind: 'scrib', v: 700, turn: 0.1, wiggle: 1.2, strokeLen: 1.5, hop: 0.25, careless: true }),
+  lanes: Object.freeze({ kind: 'serp', v: 350, turn: 0.2, careless: true }),
 });
 // The profiles the pacing table and par use (careless is the bitten check).
 export const PACING_PROFILES = Object.freeze(['fast', 'average', 'calm', 'scribble']);
@@ -235,7 +238,7 @@ export class Autopilot {
             if (d < nd) { nd = d; near = b; }
           }
         }
-        if (near && near.state === 'angry' && near.angerT > 0.8 && nd < 1.3 * Ra) {
+        if (near && near.state === 'angry' && warnLevel(near) > 0.5 && nd < 1.3 * Ra) {
           // Still close after most of the warning: lift and start elsewhere.
           this._release(p.turn);
           this.hops++;
@@ -288,6 +291,6 @@ export function runField(n, layoutName = 'phone', profileName = 'average', opts 
     won: world.won, time: world.won ? +world.wonAt.toFixed(1) : null,
     meter: +(100 * s.meter).toFixed(1), whole: +(100 * s.whole).toFixed(1),
     cell: +layout.cell.toFixed(1), brushPx: +world.brushRadiusPx(L.pointerType).toFixed(1),
-    bites: world.bites, petted: world.petted, bugs: world.bugs.list.length, hops: pilot.hops,
+    bites: world.bites, warnings: world.warnings, petted: world.petted, bugs: world.bugs.list.length, hops: pilot.hops,
   };
 }

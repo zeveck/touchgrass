@@ -14,7 +14,8 @@ import { getLevel, LEVELS } from '../game/src/sim/levels.mjs';
 import { mulberry32 } from '../game/src/sim/rng.mjs';
 import {
   SPAWNS, SPECIES, SPECIES_ORDER, WARN_MIN_S, BITE_FRAC, PET_FRAC, PET_SCORE, FLEE_DIST, COOLDOWN_S,
-  CALM_FAR, angerRadiusPx, bugSizePx, petRadiusPx, warnRingPx, UNDER_FRAC,
+  CALM_FAR, CALM_S, FADE_PER_S, RISE_PER_S, PASS_GAIN, angerRadiusPx, bugSizePx, petRadiusPx, warnRingPx, UNDER_FRAC,
+  warnLevel,
 } from '../game/src/sim/insects.mjs';
 
 function layoutFor(n, vw = 1280, vh = 800) {
@@ -177,28 +178,147 @@ test('insects: across random strokes near biters, every bite comes 1.5 s or more
   assert.ok(bites > 0 && warnings > bites, `the strokes did get warned (${warnings}) and bitten (${bites})`);
 });
 
-test('insects: an angry biter calms when the finger moves away (or stops) for 0.5 s, without biting', () => {
+test('insects: an angry biter calms once its build-up has faded and the finger has been away 0.5 s, without biting', () => {
   const w = empty(6);
   const c = w.layout.cell;
   const Ra = angerRadiusPx(c);
   const ant = w.bugs.spawn('ant', 4.5, 4.5);
   hold(ant);
-  circle(w, 4.5 * c, 4.5 * c, 15, 0.6);
+  circle(w, 4.5 * c, 4.5 * c, 15, 0.15);
   assert.equal(ant.state, 'angry');
-  // Keep sweeping, but well away (beyond 1.25 x the radius).
+  const built = ant.angerT;
+  assert.ok(built >= PASS_GAIN, `built up ${built}`);
+  // Keep sweeping, but well away (beyond 1.25 x the radius): the build-up
+  // fades at FADE_PER_S, it doesn't reset, and the bug stays angry till it's gone.
   const fx = 4.5 * c + CALM_FAR * Ra + 25;
-  circle(w, fx + 15, 14 * c, 15, 0.25);
-  assert.equal(ant.state, 'angry', 'not calm yet');
-  circle(w, fx + 15, 14 * c, 15, 0.35);
+  circle(w, fx + 15, 14 * c, 15, 0.5);
+  assert.equal(ant.state, 'angry', 'not calm yet: some build-up left');
+  assert.ok(Math.abs(ant.angerT - (built - FADE_PER_S * 0.5)) < 0.02, `faded to ${ant.angerT}`);
+  circle(w, fx + 15, 14 * c, 15, built / FADE_PER_S - 0.5 + 0.1);
   assert.equal(ant.state, 'wander');
   assert.equal(w.bites, 0);
-  // Angry again, then the finger lifts: calm after 0.5 s.
-  circle(w, 4.5 * c, 4.5 * c, 15, 0.5);
+  // Angry again, then the finger lifts: calm once the build-up has faded
+  // (and never sooner than CALM_S).
+  circle(w, 4.5 * c, 4.5 * c, 15, 0.05);
   assert.equal(ant.state, 'angry');
+  const b2 = ant.angerT;
   w.pointerUp();
-  run(w, 0.55);
+  run(w, Math.max(CALM_S, b2 / FADE_PER_S) - 0.05);
+  assert.equal(ant.state, 'angry');
+  run(w, 0.1);
   assert.equal(ant.state, 'wander');
   assert.equal(w.bites, 0);
+});
+
+test('insects: anger builds over repeated passes (not speed) -- one pass warns, sweeping back and forth bites, after 1.5 s of warning', () => {
+  for (const [vw, vh] of [[1280, 800], [390, 844]]) {
+    const w = empty(10, { vw, vh });
+    const c = w.layout.cell;
+    const Ra = angerRadiusPx(c);
+    w.energy.set(0.5 * w.energy.line);
+    const bx = 14.5, by = 14.5;
+    const bee = w.bugs.spawn('bee', bx, by);
+    hold(bee);
+    // Straight strokes through the bee, 3 x its radius each way, at 350 px/s.
+    const L = 3 * Ra, v = 350;
+    let t0 = null, biteAt = null, minLevelAtBite = null, maxLevelBefore = 0;
+    let x = bx * c - L, dir = 1;
+    w.pointerDown(x, by * c, 'mouse');
+    const passes = [];
+    let inside = false;
+    for (let k = 0; k < 60 * 20 && biteAt === null; k++) {
+      x += dir * v * STEP;
+      if (x > bx * c + L || x < bx * c - L) dir = -dir;
+      const lvl = warnLevel(bee);
+      w.pointerMove(x, by * c, STEP);
+      w.step(STEP);
+      const now = Math.abs(x - bx * c) <= Ra;
+      if (now && !inside) passes.push(w.time);
+      inside = now;
+      for (const e of w.drainFx()) {
+        if (e[0] !== 'bug') continue;
+        if (e[1] === 'angry' && t0 === null) t0 = w.time;
+        if (e[1] === 'bite') { biteAt = w.time; minLevelAtBite = lvl; }
+        if (e[1] === 'calm') t0 = null;
+      }
+      if (biteAt === null) maxLevelBefore = Math.max(maxLevelBefore, warnLevel(bee));
+      if (passes.length === 1 && !now && bee.state === 'angry') {
+        // After the first pass: warned, but nowhere near a bite.
+        assert.ok(warnLevel(bee) < 1, `${vw}: one pass doesn't fill the warning`);
+      }
+    }
+    assert.ok(biteAt !== null, `${vw}x${vh}: sweeping back and forth past a bee bites`);
+    assert.ok(passes.length >= 3, `${vw}x${vh}: it took a few passes (${passes.length})`);
+    assert.ok(biteAt - t0 >= WARN_MIN_S - 1e-9, `${vw}x${vh}: warned ${biteAt - t0} s first`);
+    assert.equal(minLevelAtBite, 1, 'the arc was full just before the bite (it shows the build-up honestly)');
+    assert.equal(w.bites, 1);
+  }
+});
+
+test('insects: the build-up fades slowly when the pointer leaves (it does not reset), and a Ring clears it', () => {
+  const w = empty(6);
+  const c = w.layout.cell;
+  const ant = w.bugs.spawn('ant', 5.5, 5.5);
+  hold(ant);
+  circle(w, 5.5 * c, 5.5 * c, 15, 0.2);
+  const a1 = ant.angerT;
+  // One pass: its pass gain, plus a little for the time inside.
+  assert.ok(a1 >= PASS_GAIN && a1 <= PASS_GAIN + RISE_PER_S * 0.2 + 1e-6, `built ${a1}`);
+  w.pointerUp();
+  run(w, 1);
+  assert.equal(ant.state, 'angry', 'still grumpy a second later');
+  assert.ok(Math.abs(ant.angerT - (a1 - FADE_PER_S)) < 0.02, `faded to ${ant.angerT}, not reset`);
+  // Back for another short pass: it carries on from where it was (a new pass adds its gain).
+  const a2 = ant.angerT;
+  circle(w, 5.5 * c, 5.5 * c, 15, 0.1);
+  assert.ok(ant.angerT >= a2 + PASS_GAIN - 1e-9, `built on: ${a2} -> ${ant.angerT}`);
+  w.pointerUp();
+  w.energy.set(0.5 * w.energy.line);
+  assert.equal(w.fireMove('ring', { x: 5.5, y: 5.5 }).fired, true);
+  assert.equal(ant.state, 'flee');
+  assert.equal(ant.angerT, 0);
+  assert.equal(w.bites, 0);
+});
+
+test('insects: scribbling for 20 s beside a bee gets bitten (warned 1.5 s first); a single pass never does', () => {
+  for (const [vw, vh] of [[1280, 800], [390, 844]]) {
+    const w = empty(10, { vw, vh });
+    const c = w.layout.cell;
+    const Ra = angerRadiusPx(c);
+    w.energy.set(0.5 * w.energy.line);
+    const bee = w.bugs.spawn('bee', 14.5, 14.5);
+    hold(bee);
+    const rng = mulberry32(5);
+    const cx = 14.5 * c, cy = 14.5 * c, box = 2.5 * Ra;
+    let x = cx + box * 0.8, y = cy, ang = 0, angryAt = null;
+    w.pointerDown(x, y, 'mouse');
+    for (let k = 0; k < 60 * 20 && !w.bites; k++) {
+      ang += (rng() - 0.5) * 0.9;
+      x += Math.cos(ang) * 400 * STEP; y += Math.sin(ang) * 400 * STEP;
+      if (Math.abs(x - cx) > box || Math.abs(y - cy) > box) {
+        ang = Math.atan2(cy - y, cx - x) + (rng() - 0.5);
+        x = Math.max(cx - box, Math.min(cx + box, x)); y = Math.max(cy - box, Math.min(cy + box, y));
+      }
+      w.pointerMove(x, y, STEP);
+      w.step(STEP);
+      for (const e of w.drainFx()) {
+        if (e[0] === 'bug' && e[1] === 'angry') angryAt = w.time;
+        if (e[0] === 'bug' && e[1] === 'bite') assert.ok(w.time - angryAt >= WARN_MIN_S - 1e-9);
+      }
+    }
+    assert.ok(w.bites >= 1, `${vw}x${vh}: scribbling beside a bee bites`);
+    // One straight pass right through the middle, at a calm 150 px/s: warned, not bitten.
+    const w2 = empty(10, { vw, vh });
+    const b2 = w2.bugs.spawn('bee', 14.5, 14.5);
+    hold(b2);
+    let px = cx - 3 * Ra;
+    w2.pointerDown(px, cy, 'mouse');
+    while (px < cx + 3 * Ra) { px += 150 * STEP; w2.pointerMove(px, cy, STEP); w2.step(STEP); }
+    w2.pointerUp();
+    run(w2, 8);
+    assert.equal(w2.warnings, 1);
+    assert.equal(w2.bites, 0, `${vw}x${vh}: one slow pass through a bee never bites`);
+  }
 });
 
 test('insects: a bite never takes the meter below 0', () => {

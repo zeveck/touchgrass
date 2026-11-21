@@ -228,7 +228,7 @@ export class Cards {
 
   // The field-complete card: score, best, time vs par, friends petted, the
   // head start if earned; Next field, Map, Share. A challenge adds how you did
-  // against their score; a guest challenge has Try again and Map instead.
+  // against their score; a guest challenge has Try again, Map and Share.
   showComplete(o) {
     const { n, name, time, par, whole, headStartEarned, headStartUsed, last, petted = 0, friends = 0 } = o;
     const card = el('div', 'card card-complete');
@@ -276,8 +276,11 @@ export class Cards {
     }
     const row = el('div', 'card-actions');
     if (o.guest) {
+      // A guest can send a challenge back (the same scorecard flow).
       row.append(button('Try again', 'btn-try-again', o.onTryAgain, true));
-      row.append(button('Map', 'btn-complete-map', o.onMap));
+      const pair = el('div', 'card-pair');
+      pair.append(button('Map', 'btn-complete-map', o.onMap), button('Share', 'btn-complete-share', o.onShare));
+      row.append(pair);
     } else {
       row.append(button(last ? 'Finish' : 'Next field', 'btn-next-field', o.onNext, true));
       const pair = el('div', 'card-pair');

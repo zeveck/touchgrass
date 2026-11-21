@@ -44,9 +44,19 @@ export const SPAWNS = Object.freeze({
   15: { bee: 2, wasp: 1, ant: 2, ladybug: 2, butterfly: 1, caterpillar: 1, snail: 1 },
 });
 
-export const WARN_MIN_S = 1.5;       // the angry glow shows at least this long before a bite
+export const WARN_MIN_S = 1.5;       // the warning shows at least this long before a bite
 export const CALM_FAR = 1.25;        // x anger radius: farther than this (or not sweeping)...
-export const CALM_S = 0.5;           // ...for this long calms an angry bug
+// Anger builds up (to WARN_MIN_S) by passes: each time a sweeping pointer
+// comes into the anger radius adds PASS_GAIN, and staying inside adds
+// RISE_PER_S more, so it hardly hangs on how fast you sweep. One pass warns;
+// three or four passes close together (or scribbling beside it) fill it. A bite
+// needs the build-up full AND the warning showing for WARN_MIN_S.
+export const PASS_GAIN = 0.4;
+export const RISE_PER_S = 0.75;    // so staying on a biter still bites after 1.5 s, as before
+export const FADE_PER_S = 0.3;       // ...away, the build-up fades this much per second (it doesn't reset),
+export const CALM_S = 0.5;           // ...and the bug calms once it's gone and the finger's been away this long
+export const DRIFT_P = 0.5;          // chance a biter's new heading is towards standing grass
+export const DRIFT_CELLS = 4;        // how far ahead (cells) it looks for standing grass
 export const FLEE_DIST = 1.5;        // x anger radius: a fleeing bug runs until this far away
 export const FLEE_MIN_PX = 60;       // flee speed = max(2 x speed, 60 px/s)
 export const FLEE_MAX_S = 4;         // a cornered bug stops fleeing after this long
@@ -55,6 +65,15 @@ export const BITE_FRAC = 0.03;       // a bite takes 3% of the line
 export const PET_FRAC = 0.02;        // a first pet gives 2% of the line...
 export const PET_SCORE = 25;         // ...and 25 score, once per bug per field
 export const UNDER_FRAC = 0.35;      // a cell is under a bug within 0.35 x its drawn size
+
+// How close an angry biter is to biting, 0..1: the build-up, and never more
+// than the share of the 1.5 s warning already shown. 1 means the next sweep
+// inside its radius bites. The warning ring's arc and the buzz show this.
+export function warnLevel(b) {
+  if (!b || b.state !== 'angry') return 0;
+  const v = Math.min(b.angerT, b.warnT);
+  return v >= WARN_MIN_S - 1e-9 ? 1 : v / WARN_MIN_S;
+}
 
 // Drawn size: clamp(2 cells, 36 px, 72 px), times the species' scale (ant
 // 1.2, bee and wasp 1.1). The caterpillar is 1.4x longer. Without a species,
@@ -88,7 +107,9 @@ function makeBug(sp, x, y, hd) {
     state: 'wander',     // 'wander' | 'idle' | 'angry' | 'flee'
     t: 0,                // idle time left
     cool: 0,             // can't get angry while > 0
-    angerT: 0,           // seconds angry so far
+    angerT: 0,           // anger built up (passes and time inside the radius; fades when away)
+    warnT: 0,            // seconds the warning has shown (since it started)
+    inside: false,       // a sweeping pointer was inside the anger radius last step (a pass)
     calmT: 0,            // seconds the pointer has been away / still while angry
     fleeX: 0, fleeY: 0,  // where it flees from (cells) when no pointer is down
     fleeT: 0,
@@ -256,7 +277,15 @@ export class Bugs {
       if (b.t <= 0) { b.state = 'wander'; b.tgt = b.hd + (rng() - 0.5) * 2; }
       return;
     }
-    if (rng() < s.wander * dt) b.tgt = b.hd + (rng() - 0.5) * 2.4;
+    if (rng() < s.wander * dt) {
+      b.tgt = b.hd + (rng() - 0.5) * 2.4;
+      // Biters drift towards standing grass (where the sweeping goes next),
+      // so they don't stay where the last lap left them.
+      if (b.hostile && rng() < DRIFT_P) {
+        const a = this._towardGrass(b);
+        if (a !== null) b.tgt = a;
+      }
+    }
     if (rng() < s.idle * dt) {
       b.state = 'idle';
       b.t = b.sp === 'butterfly' ? 1.5 + 2 * rng() : 0.6 + 1.6 * rng();
@@ -265,6 +294,25 @@ export class Bugs {
     this._turn(b, b.sp === 'snail' || b.sp === 'caterpillar' ? 1.2 : 3, dt);
     b.moving = Math.min(1, b.moving + dt * 4);
     this._move(b, (s.speed / this.cell) * b.moving * dt);
+  }
+
+  // The heading (of eight, round the current one) with the most standing
+  // grass a few cells ahead, or null if there's none standing anywhere near.
+  _towardGrass(b) {
+    const g = this.world.grid;
+    let best = null, bh = 0;
+    for (let k = 0; k < 8; k++) {
+      const a = b.hd + (k * Math.PI) / 4;
+      let sum = 0;
+      for (const r of [DRIFT_CELLS * 0.5, DRIFT_CELLS]) {
+        const x = Math.floor(b.x + Math.cos(a) * r), y = Math.floor(b.y + Math.sin(a) * r);
+        if (x < 0 || y < 0 || x >= g.W || y >= g.H) continue;
+        const i = y * g.W + x;
+        if (g.valid[i]) sum += g.h[i];
+      }
+      if (sum > bh + 0.05) { bh = sum; best = a; }
+    }
+    return bh >= 0.6 ? best : null;
   }
 
   _flee(b, dt, pointer) {
@@ -300,7 +348,7 @@ export class Bugs {
     const was = b.state;
     b.state = 'flee';
     b.fleeX = fx; b.fleeY = fy;
-    b.fleeT = 0; b.angerT = 0; b.calmT = 0;
+    b.fleeT = 0; b.angerT = 0; b.calmT = 0; b.warnT = 0;
     this.events.push(['flee', b, was]);
   }
 
@@ -319,11 +367,21 @@ export class Bugs {
       const d = p ? this.distPx(b, p.x, p.y) : Infinity;
       if (b.state === 'flee') { this._flee(b, dt, p); continue; }
       if (b.state === 'angry') {
-        b.angerT += dt;
-        b.moving = Math.max(0, b.moving - dt * 6);
+        // Anger builds only while a sweeping pointer is inside the radius,
+        // and the warning shows the whole time there's any built up, so a
+        // bite always comes after at least 1.5 s of visible warning. Away,
+        // it fades slowly instead of resetting: sweeping back and forth past
+        // a biter adds up.
+        // The bite comes on a step after the arc already shows full.
+        const close = sweeping && d <= Ra;
+        const full = b.angerT >= WARN_MIN_S - 1e-9 && b.warnT >= WARN_MIN_S - 1e-9;
+        b.warnT += dt;
         if (p) b.tgt = Math.atan2(p.y / this.cell - b.y, p.x / this.cell - b.x);
         this._turn(b, 6, dt);
-        if (sweeping && d <= Ra && b.angerT >= WARN_MIN_S) {
+        b.moving = Math.max(0, b.moving - dt * 6);
+        if (close && !full) b.angerT = Math.min(WARN_MIN_S, b.angerT + RISE_PER_S * dt + (b.inside ? 0 : PASS_GAIN));
+        b.inside = close;
+        if (close && full) {
           // Bite: 3% of the line (never below 0), then flee.
           const loss = Math.min(w.energy.value, BITE_FRAC * w.energy.line);
           w.energy.add(-BITE_FRAC * w.energy.line);
@@ -334,9 +392,10 @@ export class Bugs {
         }
         if (!sweeping || d > CALM_FAR * Ra) {
           b.calmT += dt;
-          if (b.calmT >= CALM_S) {
+          b.angerT = Math.max(0, b.angerT - FADE_PER_S * dt);
+          if (b.calmT >= CALM_S && b.angerT <= 0) {
             b.state = 'wander';
-            b.angerT = 0; b.calmT = 0;
+            b.angerT = 0; b.calmT = 0; b.warnT = 0;
             this.events.push(['calm', b]);
           }
         } else b.calmT = 0;
@@ -345,7 +404,9 @@ export class Bugs {
       if (b.cool > 0) b.cool = Math.max(0, b.cool - dt);
       if (sweeping && d <= Ra && b.cool <= 0) {
         b.state = 'angry';
-        b.angerT = 0; b.calmT = 0;
+        b.angerT = PASS_GAIN; b.calmT = 0; b.warnT = 0;   // this is its first pass
+        b.inside = true;
+        this.world.warnings++;
         this.events.push(['angry', b]);
         continue;
       }

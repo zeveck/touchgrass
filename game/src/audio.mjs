@@ -4,9 +4,14 @@
 // (+18 dB: the meadow loops are very quiet), effects bus. Mute is the master
 // gain and persists in touchgrass.v1.
 //
-// - The AudioContext is created on the first pointerdown or key press, and
-//   resume() is called again on pointerup / click / keydown until it runs
-//   (older iOS only unlocks on touchend / click).
+// - The AudioContext is created on the first pointerdown or key press. A
+//   permanent gesture listener (pointerup / touchend / click / keydown) calls
+//   resume() whenever the context isn't running: older iOS only unlocks on
+//   touchend / click, and iOS can stop it at any time ('interrupted' by a
+//   call or Siri, or 'suspended') and only lets a gesture start it again.
+// - Hidden page: the context is suspended (no sound in the background), and
+//   resumed when the page shows again (or, if that's refused, on the next
+//   gesture). The field pauses itself too (game.mjs).
 // - Music: near-silent padding is trimmed at decode; each track loops with a
 //   3 s overlapping crossfade (two sources on the music bus); switching
 //   tracks crossfades over 1 s. Paused: the music ducks.
@@ -106,6 +111,14 @@ class Audio {
     for (const t of ['pointerup', 'click', 'keydown', 'touchend']) {
       window.addEventListener(t, this._resume, { capture: true });
     }
+    document.addEventListener('visibilitychange', () => this._onVisibility());
+  }
+
+  _onVisibility() {
+    if (!this.ctx) return;
+    if (document.hidden) {
+      this.ctx.suspend().then(() => this._emit(), () => {});
+    } else this._resume();
   }
 
   // Fetch the bytes early (decoding needs the context). Called once the title
@@ -131,6 +144,13 @@ class Audio {
       return;
     }
     const ctx = this.ctx;
+    // iOS can stop the context on its own ('interrupted', or 'suspended' after
+    // a call): try again at once (it may be refused until a gesture, which
+    // the permanent listener catches).
+    ctx.onstatechange = () => {
+      if (ctx.state !== 'running' && ctx.state !== 'closed' && !document.hidden) this._resume();
+      this._emit();
+    };
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(ctx.destination);
@@ -147,15 +167,14 @@ class Audio {
     this._emit();
   }
 
+  // Called on every gesture (and when the page shows again): kept for good,
+  // so sound always comes back after an interruption. Cheap when running.
   _resume() {
-    if (!this.ctx) return;
-    if (this.ctx.state !== 'running') {
-      this.ctx.resume().then(() => this._emit(), () => {});
-    } else {
-      for (const t of ['pointerup', 'click', 'keydown', 'touchend']) {
-        window.removeEventListener(t, this._resume, { capture: true });
-      }
-    }
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || document.hidden) return;
+    // Not de-duplicated: on iOS a resume() outside a gesture can hang, and
+    // the next gesture's call must still go through.
+    ctx.resume().then(() => this._emit(), () => {});
   }
 
   _fetch(url) {

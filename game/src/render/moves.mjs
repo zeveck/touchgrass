@@ -1,7 +1,7 @@
 // render/moves.mjs -- the moves on the canvas (GAME_DESIGN.md "Moves",
 // "Juice"): the armed preview (the Ring's circle and the Line's corridor
 // under the pointer, Full Clear's whole field, with the grass they'd flatten
-// shimmering and the exact price; grey when it can't be afforded) and the
+// shimmering and the exact net price; grey when it can't be afforded) and the
 // effects when one fires (the Ring's shock-wave, the Line's breeze trail,
 // Full Clear's gust rolling across the meadow).
 //
@@ -10,6 +10,7 @@
 // Render-only.
 
 import { STAND_H } from '../sim/grid.mjs';
+import { priceLabel } from '../sim/moves.mjs';
 
 const RING_S = 0.38;      // shock-wave out to the Ring's edge
 const LINE_S = 0.9;       // breeze trail
@@ -32,9 +33,15 @@ function pricePill(ctx, x, y, text, ok) {
   return w;
 }
 
-function pct(frac) {
-  const p = frac * 100;
-  return p < 1 && p > 0 ? '<1%' : `${Math.round(p)}%`;
+// The armed preview's pill: the exact net change where you're aiming
+// ("free", "−0.4%", "−3%"), or, when the meter can't hold the move's full
+// charge yet, how much it needs (the pill goes grey and releasing does nothing).
+export function previewLabel(armed, price) {
+  if (!price) return armed === 'clear' ? 'Full Clear' : '';
+  if (armed === 'line' && !price.area.cells.length) return 'Drag over the field';
+  const v = price.affordable ? priceLabel(price.lossFrac, { exact: true })
+    : `needs ${Math.max(1, Math.round(price.frac * 100))}%`;
+  return armed === 'clear' ? `Full Clear ${v}: tap the field` : v;
 }
 
 // Soft light over the standing cells a move would flatten.
@@ -64,7 +71,7 @@ export function drawPreview(ctx, world, layout, dpr, t, armed, price, extra, red
     ctx.save();
     if (price) shimmerCells(ctx, world.grid, price.area.cells, layout, t, ok, reduced);
     ctx.restore();
-    const label = price ? `Full Clear ${pct(price.frac)}: tap the field` : 'Full Clear';
+    const label = previewLabel('clear', price);
     // Above the field when there's room (below the HUD strip in portrait).
     const top = layout.portrait ? layout.hud.y + layout.hud.h : 0;
     pricePill(ctx, fx + layout.field.w / 2, fy - 34 > top ? fy - 20 : fy + 18, label, ok);
@@ -85,7 +92,7 @@ export function drawPreview(ctx, world, layout, dpr, t, armed, price, extra, red
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = ok ? 'rgba(43, 42, 38, 0.6)' : 'rgba(80, 80, 80, 0.5)';
     ctx.beginPath(); ctx.arc(x, y, r + 2, 0, Math.PI * 2); ctx.stroke();
-    pricePill(ctx, x, y - r - 18, pct(price.frac), ok);
+    pricePill(ctx, x, y - r - 18, previewLabel('ring', price), ok);
     box = { x0: x - r - 60, y0: y - r - 40, x1: x + r + 60, y1: y + r + 10 };
   } else if (armed === 'line' && extra && extra.path && extra.path.length) {
     const path = extra.path;   // the raw drag (cells), drawn as dragged
@@ -116,7 +123,7 @@ export function drawPreview(ctx, world, layout, dpr, t, armed, price, extra, red
     }
     const end = path[path.length - 1];
     const ex = fx + end[0] * cell, ey = fy + end[1] * cell;
-    if (price) pricePill(ctx, ex, ey - hw * cell - 20, price.area.cells.length ? pct(price.frac) : 'Drag over the field', ok && price.area.cells.length > 0);
+    if (price) pricePill(ctx, ex, ey - hw * cell - 20, previewLabel('line', price), ok && price.area.cells.length > 0);
     const m = hw * cell + 80;
     box = { x0: bx0 - m, y0: by0 - m, x1: bx1 + m, y1: by1 + m };
   }

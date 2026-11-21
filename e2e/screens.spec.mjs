@@ -593,13 +593,22 @@ test('hover-sweep: a moving mouse with no button sweeps; a parked one lifts and 
   // Parked for 0.5 s: no longer sweeping (the stroke lifts).
   await page.waitForTimeout(600);
   expect((await page.evaluate(() => window.__game.info())).sweeping).toBe(false);
-  // Parked next to an ant: it never gets angry.
+  // Parked next to an ant: a parked pointer never builds its anger. (The
+  // move there sweeps past it, which may warn it a little; parked, that
+  // build-up only fades, and it calms with no bite.)
   const id = await page.evaluate(() => window.__game.spawn('ant', 10, 4));
   await page.evaluate((i) => window.__game.holdBug(i, 30), id);
   const ant = (await page.evaluate(() => window.__game.bugs()))[0];
   await page.mouse.move(ant.page.x + 30, ant.page.y, { steps: 6 });
-  await page.waitForTimeout(2200);
-  expect((await page.evaluate(() => window.__game.bugs()))[0].state).not.toBe('angry');
+  await page.waitForTimeout(500);
+  let lastAnger = Infinity;
+  await expect.poll(async () => {
+    const b = (await page.evaluate(() => window.__game.bugs()))[0];
+    expect(b.angerT).toBeLessThanOrEqual(lastAnger + 1e-9);
+    lastAnger = b.angerT;
+    return b.state;
+  }, { timeout: 10000 }).not.toBe('angry');
+  expect((await page.evaluate(() => window.__game.info())).bites).toBe(0);
   // A click still pets a friend.
   const lb = await page.evaluate(() => window.__game.spawn('ladybug', 14, 4));
   await page.evaluate((i) => window.__game.holdBug(i, 30), lb);

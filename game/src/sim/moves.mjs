@@ -123,7 +123,46 @@ export function priceOf(grid, cells) {
       standing++;
     }
   }
-  return { cost, gain, net: gain - cost, standing, cells: n };
+  // loss: what the meter really drops by when it fires (paid, then paid
+  // back): 0 on full-grown grass, a little on shorter standing grass.
+  return { cost, gain, net: gain - cost, loss: Math.max(0, cost - gain), standing, cells: n };
+}
+
+// What a move's net cost reads as: "free" when it costs nothing, else
+// "−N%" of the line. exact (the armed preview) keeps one decimal under 1%;
+// the toolbar rounds, and anything under half a percent reads "free".
+export function priceLabel(lossFrac, { exact = false } = {}) {
+  const p = Math.max(0, lossFrac) * 100;
+  if (exact) {
+    if (p < 0.05) return 'free';
+    return `\u2212${p < 1 ? p.toFixed(1) : Math.round(p)}%`;
+  }
+  if (p < 0.5) return 'free';
+  return `\u2212${Math.round(p)}%`;
+}
+
+// The cell lists a button's typical price averages over: every on-field Ring
+// aim, or a straight Line along every row. Fixed for a field and brush, so
+// they're worked out once (see World.typicalLoss).
+export function typicalAreas(grid, kind, brushCells) {
+  const out = [];
+  if (kind === 'ring') {
+    const rc = ringRadiusCells(brushCells);
+    for (let i = 0; i < grid.N; i++) {
+      if (!grid.valid[i]) continue;
+      out.push(ringCells(grid, (i % grid.W) + 0.5, Math.floor(i / grid.W) + 0.5, rc));
+    }
+  } else if (kind === 'line') {
+    const hw = lineHalfWidthCells(brushCells);
+    for (let r = 0; r < grid.H; r++) {
+      const y = r + 0.5;
+      let lo = -1, hi = -1;
+      for (let c = 0; c < grid.W; c++) if (grid.valid[r * grid.W + c]) { if (lo < 0) lo = c; hi = c; }
+      if (lo < 0) continue;
+      out.push(lineCells(grid, [[lo + 0.5, y], [hi + 0.5, y]], hw));
+    }
+  } else out.push(clearCells(grid));
+  return out;
 }
 
 // Nearest valid cell centre to (x, y) (cells): the Ring's aim is clamped to

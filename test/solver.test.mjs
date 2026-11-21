@@ -4,7 +4,8 @@
 // fast and scribble within 1.5x par, calm within 2.5x par. Fast is never
 // slower than average. See design/tuning/tuned.md for the scribble note.
 // Bugs are in: good play (every pacing profile) steers round the biters and
-// is never bitten; a careless scribbler gets bitten and still always wins.
+// is never bitten; a careless scribbler gets bitten and still always wins,
+// and a lane sweep that never steers ("lanes") is warned but rarely bitten.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,6 +93,24 @@ test('solver: the "bitten" check -- a careless scribbler (never steers) gets bit
     }
   }
   assert.ok(bites > 0, 'it really was bitten');
+});
+
+test('solver: anger builds over passes -- a lane sweep that never steers is warned on every bug field, a careless scribbler is bitten now and then', () => {
+  let bittenFields = 0, lanesBites = 0;
+  for (const layout of ['phone', 'desktop']) {
+    for (const l of LEVELS.filter((x) => x.n >= 6)) {
+      const lanes = runField(l.n, layout, 'lanes');
+      assert.equal(lanes.won, true, `lanes field ${l.n} ${layout}`);
+      assert.ok(lanes.warnings >= 1, `lanes field ${l.n} ${layout}: warned (${lanes.warnings})`);
+      assert.ok(lanes.time <= l.par * 2.5, `lanes field ${l.n} ${layout}: ${lanes.time}s`);
+      lanesBites += lanes.bites;
+      const c = runField(l.n, layout, 'careless');
+      if (c.bites > 0) bittenFields++;
+    }
+  }
+  // Sweeping straight through warns; it's going back and forth near a biter that bites.
+  assert.ok(lanesBites <= 3, `a plain lane sweep is rarely bitten (${lanesBites})`);
+  assert.ok(bittenFields >= 4, `a careless scribbler is bitten on several fields (${bittenFields})`);
 });
 
 test('solver: good play pets every friendly on the field', () => {

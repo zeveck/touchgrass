@@ -20,7 +20,7 @@ import { Energy, meterLine, earnsHeadStart } from './energy.mjs';
 import { Bugs } from './insects.mjs';
 import {
   ringRadiusCells, lineHalfWidthCells, ringCells, linePath, lineCells, clearCells, priceOf,
-  clampToField, typicalPrice,
+  clampToField, typicalPrice, typicalAreas,
 } from './moves.mjs';
 
 export const STEP = 1 / 60;
@@ -53,6 +53,7 @@ export class World {
     this.brushH = 0;          // mean height under the brush at the last stamp (for the rustle)
     this.loosenCount = 0;
     this.bites = 0;
+    this.warnings = 0;        // times a biter started a warning
     this.petScore = 0;        // 25 per bug petted (once per bug per field)
     this.movesFired = { ring: 0, line: 0, clear: 0 };
     this.bugs = new Bugs(this, bugSeed);
@@ -175,6 +176,7 @@ export class World {
     const area = arg && arg.cells ? arg : this.moveArea(kind, arg, pointerType);
     const p = priceOf(this.grid, area.cells);
     p.frac = this.energy.line > 0 ? p.cost / this.energy.line : 0;
+    p.lossFrac = this.energy.line > 0 ? p.loss / this.energy.line : 0;   // the real meter change
     p.affordable = p.cost <= this.energy.value + 1e-9;
     p.area = area;
     return p;
@@ -183,6 +185,21 @@ export class World {
   // The "~N%" a move's button shows (share of the line, average spot).
   typicalPrice(kind, pointerType) {
     return typicalPrice(this.grid, kind, this.brushCells(pointerType), this.energy.line, this.field.avgMult);
+  }
+
+  // What a move would really take off the meter right now, as a share of the
+  // line: Full Clear's exact loss; the Ring's and Line's averaged over every
+  // aim (as typicalPrice), from the grass as it stands now.
+  typicalLoss(kind, pointerType) {
+    const bc = this.brushCells(pointerType);
+    const key = `${kind}:${bc}`;
+    if (!this._areas) this._areas = new Map();
+    if (!this._areas.has(key)) this._areas.set(key, typicalAreas(this.grid, kind, bc));
+    const list = this._areas.get(key);
+    if (!list.length || this.energy.line <= 0) return 0;
+    let tot = 0;
+    for (const cells of list) tot += priceOf(this.grid, cells).loss;
+    return tot / list.length / this.energy.line;
   }
 
   // Fire a move: pay its cost and its gain in the same instant (the meter
@@ -289,6 +306,7 @@ export class World {
       strokeId: this.strokeId,
       sweeping: this.sweeping,
       bites: this.bites,
+      warnings: this.warnings,
       petted: this.petted,
       petScore: this.petScore,
       bugs: this.bugs.list.length,

@@ -50,9 +50,9 @@
 - [x] Share design: page https://claude.ai/artifact/NdpRQDpGNQPA5vzhgZENoE (private until shared; slug af33e960-0e6d-46be-acaa-f471b827d155); 5 mock pictures + 2 composited frames, $0.83, all kept as final art
 - [x] Stop (`--plan-only`): next is `/gamegen --continue` (read the shared page's comments first)
 - [x] 4 Art, animation and audio: every asset on the list made and checked; ~$10.26 of $30 so far (design/ASSETS.md)
-- [ ] 5 Build: M1 dd94adb, M2 23015db, M3 3b2e4e2, M4 4f2749c (+c84996f screenshots) done. M5 polish + full play-test IN PROGRESS (.gamegen/progress/build-m5.md). Art sheet after publishing.
-- [ ] 6 Play-test
-- [ ] 7 Final review
+- [x] 5 Build: M1 dd94adb, M2 23015db, M3 3b2e4e2, M4 4f2749c, M5 polish adbeee0. Open (low): hint cards cover the field on portrait phones; bugs can overlap on busy fields; field top border hidden by tufts on desktop f1/8/12; ~9.5 s splash on slow 4G.
+- [x] 6 Play-test: every screen at 3 sizes, play-it-wrong, offline, first-load film, one-run playthrough to the ending (adbeee0); screenshots in design/screenshots/final/
+- [x] 7 Final review: no must-fix; 5 should-fix fixed (bugs build anger over passes, net move prices + 'needs N%', audio suspend/resume, iOS resume, head-start pill), nice ones fixed; see REVIEW_LOG. Known: two timing-based e2e (bee build-up, net price) can flake when the shared machine's load is very high (~15+); they pass on rerun.
 - [ ] 8 Polish pass
 - [ ] 9 Wrap up
 

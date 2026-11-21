@@ -262,7 +262,7 @@ biters to steer around.
 
 - No game over and no fail timer. Bites take a little energy (never below 0) and the field carries on.
 - The angry glow always shows for at least 1.5 s before a bite (kept hard minimum), with a rising buzz and a
-  haptic tick.
+  haptic tick. One pass through a biter only warns; anger builds over repeated passes (see Bugs).
 - The win is the meter. You never need to find the last blade of grass; touching every blade is an optional
   bonus.
 - Grass always grows back and sweeping short grass never resets it, so the meter can always be filled, at any
@@ -328,10 +328,16 @@ Clear won any field outright. In round 1 they earned nothing and only reset gras
 | Line | Field 9 | A corridor 3 × brush radius wide along the dragged path, up to the field's width long | **Flattens stiff grass in one go**, ignoring the fresh-stroke rule, and reaches far edges and corners in one drag. |
 | Full Clear | Field 11 | Every valid cell not under a bug | **Touches every blade**, which completes the whole-field badge (and so earns the head start) on a big field where the last cells are hard to find. A gust rolls across the meadow and the whole field regrows in step. |
 
-- **Prices shown.** The button shows the price for an average spot as a share of the line ("~3%"). Full Clear
-  shows its exact price, updated twice a second. While armed, the preview shows the exact price for where
-  you're aiming. A button is disabled when the meter is below its shown price. If the exact price is more than
-  the meter, the preview turns grey and releasing does nothing (no charge, a soft low click).
+- **Prices shown (changed).** Each button shows the move's **net cost**: what the meter really loses when it
+  fires, as a share of the line. That's "free" on fully grown grass, else e.g. "−3%". The Ring's and Line's are
+  for an average spot and Full Clear's is exact, all worked out from the field's grass as it stands when the
+  field loads and then twice a second. While armed, the preview shows the exact net change for where you're
+  aiming ("free", "−0.4%", "−3%"). To fire, the meter still has to hold the move's **full charge** for a
+  moment (it's paid, then paid back): a button is disabled while the meter is below that, and tapping it says
+  how much it needs ("Full Clear needs 34% on the meter"). If the exact charge is more than the meter, the
+  preview turns grey and reads "needs N%", and releasing does nothing (no charge, a soft low click).
+  **Reason:** the buttons showed the gross charge (Full Clear "34%") while the meter really moved by 0 to 3%,
+  so the cheap, useful moves looked expensive; and a hint card over a new field showed the last field's price.
 - **Typical prices** (full-height cells covered, at the field's average mix): Ring on field 6 covers about 30
   cells, about 4% of the line. Line across field 9 covers about 100 cells, about 10%. Full Clear
   costs a full lap minus the low grass, which is at most 1/k of the line (37% on field 11, 29% on field 15). The
@@ -362,8 +368,25 @@ speeds are now in CSS pixels, so bugs look and move the same on every screen. **
 - **Anger radius** (hostiles): `max(1.5 cells, 40 px)` from the bug's centre to a *sweeping* pointer.
 - **Warning:** the bug puffs up and tints red. A pulsing red ring is drawn at `max(anger radius + 8 px, 48 px)`
   so it shows past the finger. A rising buzz plays, there's a 20 ms haptic tick, and the meter's edge glows red
-  on the side nearest the bug. After at least 1.5 s, if a sweeping pointer is still inside the anger radius, it
-  bites. If the pointer stays more than 1.25 × the radius away, or stops sweeping, for 0.5 s, it calms down.
+  on the side nearest the bug.
+- **Anger builds over passes (changed):** each time a sweeping pointer comes into the anger radius (a pass) adds
+  0.4 to the bug's anger, and staying inside adds 0.75 per second, up to a full 1.5 (so staying on it still bites
+  after 1.5 s, as before). Away (more than 1.25 × the radius, or not sweeping), it **fades at 0.3 per second
+  instead of resetting**, and the bug stays grumpy, with its warning showing, until it has all
+  faded and the pointer has been away for at least 0.5 s; then it calms down. A light arc round the ring winds
+  on with the build-up (and unwinds as it fades), and the buzz rises with it. It bites when a sweeping pointer is
+  inside the radius with the anger full **and** the warning has been showing for at least 1.5 s (kept hard
+  minimum; the arc is only drawn full once both are true). So one pass straight through a biter only warns, at
+  any speed, and a lane-by-lane sweep is warned but not bitten (the next lane comes round after most of a pass
+  has faded); sweeping back and forth near it, or scribbling beside it, adds up to a bite unless you steer away
+  or fire a Ring (which clears the anger at once). The first version counted only time inside the radius, which
+  bit slow lane sweepers on the next lane; counting passes keeps it about what you do, not how fast. **Reason:** the warning
+  used to reset 0.5 s after every pass, so a player who kept moving was never bitten anywhere and steering
+  and the Ring didn't matter (final review: 0 bites sweeping straight through desktop fields 7 to 14, and 0
+  from 20 s of scribbling beside a bee).
+- **Biters drift towards standing grass (changed):** when a biter picks a new heading, half the time it turns
+  towards the most standing grass a few cells ahead, so it wanders into the part of the field still to be
+  swept and later laps meet it somewhere new. **Reason:** they used to sit where the last lap left them.
 - **Bite:** a squash, a "bonk", a short shake of the meter, 15 ms haptics, −3% of the line. Then it flees.
 - **Flee** (after a bite, or when calmed by a Ring): the bug moves away from the pointer at
   `max(2 × its speed, 60 px/s)` until it is 1.5 × its anger radius away. Then it can't get angry again for 2 s.
@@ -727,6 +750,10 @@ red warning ring. The A01 run's reported token usage is used to re-forecast the 
   - "average": 350, serpentine, lifts 0.2 s at each turn.
   - "calm": 150, serpentine, lifts 0.4 s at each turn.
   - "scribble": 700, random curving strokes of 1.5 s with 0.1 s lifts.
+  - Two checks that never steer (not in par): "careless" (the scribbler) and "lanes" (the average serpentine
+    sweep, straight through every biter). Lanes is warned on every bug field and rarely bitten; careless is
+    bitten now and then; both win every field. **(changed:** lanes added with the anger build-up, final
+    review**)**
   - Each runs at the phone (390×844) and desktop (1280×800) layouts.
 
   A Node unit test runs every field headless with every profile at both layouts and asserts a win: "average"

@@ -7,7 +7,7 @@ import { go } from '../nav.mjs';
 import { getLevel } from '../sim/levels.mjs';
 import { isUnlocked } from '../storage.mjs';
 import { challengeLine } from '../share/link.mjs';
-import { el, button, sceneBackdrop } from './dom.mjs';
+import { el, button, sceneBackdrop, withName } from './dom.mjs';
 
 export function renderChallenge(root, app, ch) {
   const spec = getLevel(ch.f);
@@ -20,12 +20,12 @@ export function renderChallenge(root, app, ch) {
   card.setAttribute('aria-modal', 'true');
   card.setAttribute('data-testid', 'card-challenge');
   card.append(el('p', 'card-kicker', 'A challenge'));
-  const line = el('h2', 'card-title challenge-line', challengeLine(ch, spec.name));
+  const line = withName(el('h2', 'card-title challenge-line'), challengeLine(ch, spec.name), spec.name);
   line.setAttribute('data-testid', 'challenge-line');
   card.append(line);
-  card.append(el('p', 'card-sub', guest
+  card.append(withName(el('p', 'card-sub'), guest
     ? `You haven't reached field ${ch.f} yet. Play it as a guest: your map stays as it is.`
-    : `Field ${ch.f}: ${spec.name}.`));
+    : `Field ${ch.f}: ${spec.name}.`, spec.name));
   const row = el('div', 'card-actions');
   const play = button('Play', 'btn-challenge-play', () => app.playChallenge(ch), { primary: true });
   play.setAttribute('data-autofocus', '');

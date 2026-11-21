@@ -13,6 +13,8 @@
 
 export const SAVE_KEY = 'touchgrass.v1';
 export const FIELD_COUNT = 15;
+export const SCORE_MAX = 999999;    // as challenge links (share/link.mjs)
+const score = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(SCORE_MAX, Math.round(v))) : 0);
 const VERSION = 1;
 
 function fresh() {
@@ -39,8 +41,7 @@ export function migrate(raw) {
     for (const [k, v] of Object.entries(p.fields)) {
       const n = Number(k);
       if (!wholeIn(n, 1, FIELD_COUNT) || !isObj(v)) continue;
-      const best = Number.isFinite(v.best) ? Math.max(0, Math.round(v.best)) : 0;
-      fields[n] = { best, cleared: !!v.cleared };
+      fields[n] = { best: score(v.best), cleared: !!v.cleared };
     }
   }
   let unlocked = wholeIn(p.unlocked, 1, FIELD_COUNT) ? p.unlocked : 1;
@@ -48,7 +49,7 @@ export function migrate(raw) {
   if (wholeIn(p.level, 1, FIELD_COUNT)) unlocked = Math.max(unlocked, p.level);
   for (const k of Object.keys(fields)) unlocked = Math.max(unlocked, Math.min(FIELD_COUNT, Number(k) + 1));
   s.progress = { unlocked, fields };
-  s.allTimeBest = Number.isFinite(s.allTimeBest) ? Math.max(0, Math.round(s.allTimeBest)) : 0;
+  s.allTimeBest = score(s.allTimeBest);
   for (const f of Object.values(fields)) s.allTimeBest = Math.max(s.allTimeBest, f.best);
   s.headStart = isObj(s.headStart) && wholeIn(s.headStart.field, 2, FIELD_COUNT) ? { field: s.headStart.field } : null;
   if (!isObj(s.garden)) delete s.garden;
@@ -75,10 +76,22 @@ function merge(a, b) {
   return a;
 }
 
+// Told once, the first time a save fails (storage full or blocked): the game
+// carries on, it just won't remember. See onSaveFail().
+let saveFailed = null;
+let saveFailTold = false;
+export function onSaveFail(cb) { saveFailed = cb; }
+
 function store(s) {
   try {
     if (typeof localStorage !== 'undefined') localStorage.setItem(SAVE_KEY, JSON.stringify(s));
-  } catch { /* storage full or blocked: it just won't persist */ }
+  } catch {
+    // Storage full or blocked: it just won't persist.
+    if (!saveFailTold && saveFailed) {
+      saveFailTold = true;
+      try { saveFailed(); } catch { /* ignore */ }
+    }
+  }
   return s;
 }
 

@@ -27,6 +27,16 @@ export function button(label, testid, onClick, { primary = false, icon = null, i
   return b;
 }
 
+// Text with a field's name kept on one line ("Five-Stone Lawn" never breaks
+// at its hyphen). Still textContent only.
+export function withName(e, text, name) {
+  const i = name ? text.indexOf(name) : -1;
+  if (i < 0) { e.textContent = text; return e; }
+  e.textContent = '';
+  e.append(text.slice(0, i), el('span', 'keep-name', name), text.slice(i + name.length));
+  return e;
+}
+
 // An inline SVG (fixed markup written here, never from data).
 export function svg(markup, cls) {
   const s = el('span', cls);
