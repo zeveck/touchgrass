@@ -55,11 +55,11 @@
 - [x] 6 Play-test: every screen at 3 sizes, play-it-wrong, offline, first-load film, one-run playthrough to the ending (adbeee0); screenshots in design/screenshots/final/
 - [x] 7 Final review: no must-fix; 5 should-fix fixed (bugs build anger over passes, net move prices + 'needs N%', audio suspend/resume, iOS resume, head-start pill), nice ones fixed; see REVIEW_LOG. Known: two timing-based e2e (bee build-up, net price) can flake when the shared machine's load is very high (~15+); they pass on rerun.
 - [x] 8 Polish pass: no must-fix; every finding fixed (general How to play lines + move icons, landscape How to play, m:ss times, one verb 'say hello/met', aim label above bugs, landscape layouts, Copy button, Pause during hint, Ring stays armed while aiming). Playwright capped at 4 workers (16 at once starved the real-time specs).
-- [ ] 9 Wrap up: social card + GitHub preview made, pages.yml added; README next; then publish
+- [x] 9 Wrap up: social card, GitHub preview, README, Pages workflow; published at https://touchgrass.synapticnoise.com (repo zeveck/touchgrass, public; HTTPS on; live-checked at desktop and phone, no errors); gallery card and plans card 'Published'; art sheet at https://synapticnoise.com/plans/touch-grass/art/; CI pinned to ubuntu-24.04
 
 ## Plans page
 
-Plans page: yes. Card "Planned" at https://synapticnoise.com/plans/ (gallery zeveck/synapticnoise, private repo; plans/touch-grass/, design page https://synapticnoise.com/plans/touch-grass/). Pushed (cd62a3f).
+Plans page: yes. Card "Published" (was "Planned") at https://synapticnoise.com/plans/ (gallery zeveck/synapticnoise, private repo; plans/touch-grass/, design page https://synapticnoise.com/plans/touch-grass/). Pushed (cd62a3f).
 
 ## Design shared
 
@@ -67,4 +67,6 @@ Design shared: https://claude.ai/artifact/NdpRQDpGNQPA5vzhgZENoE, as a page (sou
 
 ## Spending
 
-$0.83 of $20 (mock pictures). Details in design/ASSETS.md.
+About $10.26 of $30. Details in design/ASSETS.md.
+
+Art sheet: https://synapticnoise.com/plans/touch-grass/art/ (built from .gamegen/art-sheet/manifest.json)
