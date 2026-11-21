@@ -455,6 +455,10 @@ test('ending: win field 15 (dev jump + solver), Finish, the dusk ending, back to
 
 test('report: hidden until a repo is set', async ({ page }) => {
   const errors = watchErrors(page);
+  // The published page names its repo; an unpublished copy has none.
+  await page.addInitScript(() => {
+    addEventListener('DOMContentLoaded', () => document.getElementById('report')?.setAttribute('repo', ''));
+  });
   await page.goto('/?dev=1&level=2&hints=0&bugs=0');
   await expect.poll(() => state(page)).toBe('playing');
   await press(page, 'btn-pause');
@@ -635,5 +639,37 @@ test('hover-sweep: a moving mouse with no button sweeps; a parked one lifts and 
   await page.mouse.move(a.x - 40, a.y);
   await page.mouse.move(b.x, b.y, { steps: 20 });
   expect((await page.evaluate(() => window.__game.info())).touched).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('title: the gallery and GitHub links sit in the lower corners, open in a new tab, and never start the game', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('title');
+  const gal = page.getByTestId('link-gallery');
+  const repo = page.getByTestId('link-repo');
+  await expect(gal).toHaveAttribute('href', 'https://synapticnoise.com/');
+  await expect(gal).toHaveText('synapticnoise.com');
+  await expect(repo).toHaveAttribute('href', 'https://github.com/zeveck/touchgrass');
+  await expect(repo).toHaveText('GitHub');
+  for (const l of [gal, repo]) await expect(l).toHaveAttribute('target', '_blank');
+  const vp = page.viewportSize();
+  const g = await gal.boundingBox(), r = await repo.boundingBox();
+  expect(g.x).toBeLessThan(vp.width / 3);
+  expect(r.x + r.width).toBeGreaterThan(vp.width * 2 / 3);
+  for (const b of [g, r]) expect(b.y + b.height).toBeLessThanOrEqual(vp.height);
+  // Neither overlaps the title's buttons.
+  for (const id of ['btn-start', 'btn-map', 'btn-farm']) {
+    const btn = await page.getByTestId(id).boundingBox();
+    for (const b of [g, r]) {
+      const apart = b.x + b.width <= btn.x || btn.x + btn.width <= b.x || b.y + b.height <= btn.y || btn.y + btn.height <= b.y;
+      expect(apart, id).toBe(true);
+    }
+  }
+  // A click opens the link (a new page) and the game stays on the title.
+  const popup = page.waitForEvent('popup');
+  await repo.click();
+  await (await popup).close();
+  expect(await state(page)).toBe('title');
   expect(errors).toEqual([]);
 });

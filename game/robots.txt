@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://touchgrass.synapticnoise.com/sitemap.xml

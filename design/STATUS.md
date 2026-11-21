@@ -19,7 +19,8 @@
 - Review rounds: 2
 - Plan only: done; now building (--continue)
 - Feedback: on
-- Publish: yes, at the end (--publish; domain synapticnoise.com from .env)
+- Publish: yes, at the end (--publish; domain synapticnoise.com from .env) → https://touchgrass.synapticnoise.com from zeveck/touchgrass, made public at the person's request ("public", 2026-11-21)
+- GitHub preview image: to upload (none set)
 - Art sheet: yes
 - No-confirm: yes (this run)
 - Share design: page

@@ -1157,3 +1157,23 @@ gh-feedback { font-family: "Nunito", -apple-system, "Segoe UI", sans-serif; }
 
 /* A field's name never breaks at its hyphen ("Five-Stone Lawn"). */
 .keep-name { white-space: nowrap; }
+
+/* Title screen links (publishing): small, muted, inside the safe areas. */
+.title-link {
+  position: absolute;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 3;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(251, 243, 223, 0.72);
+  color: #4a4a40;
+  font: 600 13px/1.2 "Nunito", sans-serif;
+  text-decoration: none;
+  pointer-events: auto;
+}
+.title-link:hover, .title-link:focus-visible { color: var(--ink, #2b2a26); background: rgba(251, 243, 223, 0.92); text-decoration: underline; }
+.title-link-gallery { left: calc(10px + env(safe-area-inset-left)); }
+.title-link-repo { right: calc(10px + env(safe-area-inset-right)); }
+@media (max-width: 480px), (max-height: 480px) {
+  .title-link { font-size: 11px; padding: 2px 7px; bottom: calc(6px + env(safe-area-inset-bottom)); }
+}

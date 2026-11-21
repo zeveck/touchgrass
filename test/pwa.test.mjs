@@ -35,9 +35,10 @@ test('page: title, description, theme colours, manifest, preview tags, and the r
   for (const re of [
     /<meta name="description" content="[^"]{60,}"/, /name="theme-color"[^>]*light/, /name="theme-color"[^>]*dark/,
     /<meta name="color-scheme" content="light dark">/, /rel="manifest" href="manifest.webmanifest"/,
-    /property="og:title"/, /property="og:description"/, /property="og:image" content="social-card.jpg"/,
+    /property="og:title"/, /property="og:description"/, /property="og:image" content="https:\/\/touchgrass\.synapticnoise\.com\/social-card\.jpg"/,
+    /<link rel="canonical" href="https:\/\/touchgrass\.synapticnoise\.com\/">/, /property="og:url" content="https:\/\/touchgrass\.synapticnoise\.com\/"/,
     /property="og:image:width" content="1200"/, /property="og:image:alt"/, /name="twitter:card" content="summary_large_image"/,
-    /<script src="vendor\/report.js"><\/script>/, /<gh-feedback id="report" trigger="none" repo=""/, /theme="light"/,
+    /<script src="vendor\/report.js"><\/script>/, /<gh-feedback id="report" trigger="none" repo="zeveck\/touchgrass"/, /theme="light"/,
     /<div id="loading"/,
   ]) assert.match(html, re);
 });

@@ -78,7 +78,23 @@ export function renderTitle(root, app) {
   const cv = el('canvas', 'title-toy');
   cv.setAttribute('aria-hidden', 'true');
   const bg = sceneBackdrop('title');
-  screen.append(bg.el, cv, top, actions, corner);
+  // Small links over the game, on the title only: the gallery of games
+  // (lower left) and how it was made, on GitHub (lower right).
+  const link = (cls, href, text, title, testid) => {
+    const a = el('a', `title-link ${cls}`, text);
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.title = title;
+    a.setAttribute('aria-label', title);
+    a.setAttribute('data-testid', testid);
+    // A tap on a link opens it; it never reaches the grass toy or the game.
+    a.addEventListener('pointerdown', (e) => e.stopPropagation());
+    return a;
+  };
+  const gallery = link('title-link-gallery', 'https://synapticnoise.com/', 'synapticnoise.com', 'More games at synapticnoise.com', 'link-gallery');
+  const repo = link('title-link-repo', 'https://github.com/zeveck/touchgrass', 'GitHub', 'Touch Grass on GitHub: how it was made', 'link-repo');
+  screen.append(bg.el, cv, top, actions, corner, gallery, repo);
   root.append(screen);
 
   const toy = new TitleToy(cv, { reduced: reducedMotion });
