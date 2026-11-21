@@ -569,6 +569,7 @@ html.reduce-motion .ha-bug.angry::before { animation: none; }
 @media (min-width: 760px) and (min-height: 521px) {
   .card-howto { width: min(820px, 100%); }
   .howto-list { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px 18px !important; }
+  .howto-list.single { grid-template-columns: 1fr; }
 }
 .howto-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 12px; }
 .howto-pager[hidden] { display: none; }
@@ -849,7 +850,8 @@ html.reduce-motion .map-token.nudge { animation: none; }
   will-change: transform;
 }
 .friend-art { width: 100%; height: 100%; display: block; pointer-events: none; filter: drop-shadow(2px 5px 2px rgba(43, 42, 38, 0.28)); }
-.garden-friend.unmet .friend-art { filter: brightness(0) blur(0.6px); opacity: 0.26; }
+.garden-friend.unmet { width: calc(var(--friend) * 1.25); height: calc(var(--friend) * 1.25); }
+.garden-friend.unmet .friend-art { filter: brightness(0) blur(0.3px); opacity: 0.4; }
 .friend-tag[hidden] { display: none; }
 .friend-tag {
   position: absolute;
@@ -861,7 +863,7 @@ html.reduce-motion .map-token.nudge { animation: none; }
   background: rgba(251, 243, 223, 0.88);
   border: 1.5px solid rgba(43, 42, 38, 0.5);
   color: #5a5548;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
   pointer-events: none;
@@ -964,14 +966,16 @@ html.reduce-motion .switch, html.reduce-motion .switch-knob { transition: none; 
     max-height: calc(100% - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: "sound more" "play more" "play credits";
+    grid-template-areas: "sound credits" "play credits" "play more";
     column-gap: 26px;
     padding: 4px 18px 8px !important;
   }
   .set-sound { grid-area: sound; }
   .set-play { grid-area: play; border-bottom: none; }
-  .set-more { grid-area: more; }
-  .set-credits { grid-area: credits; align-self: end; }
+  .set-more { grid-area: more; align-self: end; border-bottom: none; }
+  .set-credits { grid-area: credits; align-self: start; border-bottom: 1.5px solid rgba(43, 42, 38, 0.15); }
+  /* Clear data last and quiet: a small outlined button at the bottom. */
+  .set-more .btn-danger { align-self: flex-end; min-height: 40px; padding: 0 18px; font-size: 14px; background: transparent !important; border-width: 1.5px !important; }
   .set-group { padding: 6px 0; }
   .set-row { min-height: 46px; }
   .settings-panel .slider-wrap { width: min(200px, 24vw); }
@@ -1025,9 +1029,12 @@ html.reduce-motion .toast { transition: none; }
   .download-card .dl-side { grid-area: side; }
   .download-card .download-preview { margin: 0; }
   .download-card .card-sub { margin-bottom: 8px; }
-  .download-card .download-link { margin-bottom: 10px; }
+  .download-card .download-link-row { margin-bottom: 10px; }
 }
 .download-preview { width: 100%; height: auto; border-radius: 10px; border: 2px solid var(--ink); margin: 4px 0 10px; display: block; }
+.download-link-row { display: flex; gap: 8px; margin: 0 0 14px; }
+.download-link-row .btn { flex: none; min-height: 44px; padding: 0 16px; border-radius: 10px; }
+.download-card .download-link-row .download-link { margin: 0; flex: 1 1 auto; min-width: 0; }
 .download-link { width: 100%; min-height: 44px; box-sizing: border-box; margin: 0 0 14px; padding: 0 10px; border-radius: 10px; border: 2px solid var(--ink); font: inherit; font-size: 14px; -webkit-user-select: text; user-select: text; }
 .card a.btn { text-decoration: none; min-height: 48px; border-radius: 12px; }
 
@@ -1050,7 +1057,7 @@ html.reduce-motion .toast { transition: none; }
   .card-pause .card-title { margin-top: 0; }
   .card-pause .card-sub { margin-bottom: 10px; }
   .card-pause .card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .card-pause .card-actions > .primary { grid-column: 1 / -1; }
+  .card-pause .card-actions > .primary, .card-pause .card-actions > .span-row { grid-column: 1 / -1; }
   .card-pause .card-pair { display: contents; }
   .card-complete { display: grid; grid-template-columns: 1fr 1.2fr; column-gap: 22px; align-items: center; }
   .card-complete .card-title { font-size: 22px; }
@@ -1061,12 +1068,24 @@ html.reduce-motion .toast { transition: none; }
   .card-checklist .card-title { margin-bottom: 4px; }
   .card-checklist .checklist { columns: 2; column-gap: 28px; font-size: 14px; margin-bottom: 10px; }
   .card-checklist .checklist li { break-inside: avoid; margin-bottom: 4px; }
-  /* How to play on a short screen: words only, two columns, so a page holds more. */
-  .howto-item .hint-art { display: none; }
-  .card-howto { width: min(640px, 100%); }
-  .howto-list { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px 16px !important; margin: 4px 0 8px !important; }
-  .card-howto .card-title { font-size: 22px; margin: 0; }
-  .howto-pager { margin-bottom: 8px; }
+  /* How to play on a short screen: small pictures, two columns, and the pager
+     beside Back on one row, so a page holds more. */
+  /* (How to play is opened from the pause card: it may cover the dimmed HUD
+     and toolbar, so its columns have room.) */
+  .card-layer[data-kind="howto"] { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .card-howto { width: min(820px, 100%); display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 12px; }
+  .card-howto .card-title { grid-column: 1 / -1; font-size: 22px; margin: 0; }
+  .card-howto .howto-list { grid-column: 1 / -1; }
+  .card-howto .howto-pager { margin: 0; }
+  .card-howto .howto-pager[hidden] + .card-actions { grid-column: 1 / -1; }
+  .howto-list { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px 16px !important; margin: 6px 0 10px !important; }
+  .howto-list.single { grid-template-columns: 1fr; }
+  .howto-item { gap: 8px; }
+  .howto-item .hint-art { width: 72px; height: 56px; padding: 0; overflow: visible; }
+  .howto-item .hint-art > * { transform: scale(0.5); margin: -18px -17px; }
+  .howto-item .ha-swatch { margin: -18px -52px; }
+  .howto-text { font-size: 13px; }
+  .howto-text strong { font-size: 15px; }
   /* A phone on its side: keep the cards clear of the HUD column. */
   .card-layer { padding-left: calc(var(--hud-w, 0px) + 8px); padding-right: calc(var(--tb-w, 0px) + 8px); }
   .card-hint { width: min(600px, 100%); display: grid; grid-template-columns: 200px 1fr; grid-template-areas: "art title" "art text" "art actions" "art foot"; column-gap: 18px; align-items: center; text-align: left; }
@@ -1114,7 +1133,7 @@ html.reduce-motion .ending-words { animation: none; }
 }
 .ending-line2 { margin: 0 0 6px; font-size: clamp(1.1rem, 4vw, 1.4rem); font-weight: 700; color: #ffe9b0; text-shadow: 0 1px 10px rgba(20, 20, 50, 0.9); text-wrap: balance; }
 .ending-total { margin: 4px 0 8px; display: flex; flex-direction: column; align-items: center; }
-.ending-total-label { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #ffe9b0; text-shadow: 0 1px 8px rgba(20, 20, 50, 0.9); }
+.ending-total-label { margin-bottom: 2px; padding: 2px 10px; border-radius: 999px; background: rgba(34, 32, 58, 0.62); font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #fff3cf; }
 .ending-total-num { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 40px; line-height: 1.1; color: #fff8e4; text-shadow: 0 2px 12px rgba(20, 20, 50, 0.9); }
 .ending-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .ending-actions .btn { min-height: 52px; border-radius: 16px; padding: 0 18px; }

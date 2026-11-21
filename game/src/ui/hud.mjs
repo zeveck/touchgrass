@@ -79,7 +79,8 @@ export class Hud {
     this.ringEl = el.querySelector('.leaf-ring');
     this.leafEl = el.querySelector('.hud-leaf');
     this.leafText = el.querySelector('.hud-leaf-text');
-    el.querySelector('.hud-pause').addEventListener('click', () => onPause());
+    this.pauseBtn = el.querySelector('.hud-pause');
+    this.pauseBtn.addEventListener('click', () => onPause());
     this.muteBtn = el.querySelector('.hud-mute');
     this.muteBtn.addEventListener('click', () => onMute && onMute());
     this.flowerEl = el.querySelector('.hud-flower');

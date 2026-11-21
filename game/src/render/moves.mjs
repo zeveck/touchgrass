@@ -59,11 +59,20 @@ function shimmerCells(ctx, grid, cells, layout, t, ok, reduced) {
   ctx.fill();
 }
 
-// The armed preview. `aim` (CSS px, page) is where the pointer is, or null.
-// Returns the CSS-px box drawn.
-export function drawPreview(ctx, world, layout, dpr, t, armed, price, extra, reduced) {
+// The price pills a preview queued, drawn in a second pass after the bugs so
+// a bug under the aim never hides the price.
+export function drawPills(ctx, dpr, pills) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const p of pills) pricePill(ctx, p.x, p.y, p.text, p.ok);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// The armed preview (under the bugs). Its price pill is queued on `pills`
+// for drawPills. Returns the CSS-px box drawn (pill included).
+export function drawPreview(ctx, world, layout, dpr, t, armed, price, extra, reduced, pills) {
   const cell = layout.cell, fx = layout.field.x, fy = layout.field.y;
   const ok = !price || price.affordable;
+  const pricePill = (_c, x, y, text, good) => pills.push({ x, y, text, ok: good });
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   let box = null;
   if (armed === 'clear') {

@@ -34,7 +34,10 @@ async function pressAt(page, x, y, hold = 120) {
 async function press(page, testid, hold = 120) {
   const loc = page.getByTestId(testid).first();
   await expect(loc).toBeVisible();
-  const b = await loc.boundingBox();
+  // A cross-fading screen's copy of the button may be found, then removed:
+  // wait for one that stays on the page.
+  let b = null;
+  await expect.poll(async () => { b = await loc.boundingBox(); return !!b; }).toBe(true);
   await pressAt(page, b.x + b.width / 2, b.y + b.height / 2, hold);
 }
 

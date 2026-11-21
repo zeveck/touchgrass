@@ -4,7 +4,7 @@
 // inside the jar (their sprites, with their own code motion; the ladybug uses
 // its crawl frames). Unmet friends are soft silhouettes, "Not met yet". Tap a
 // friend for its card: name, a one-line note, first met, and friendship
-// hearts for the fields you've petted it in (1, 5, 15). Back returns to the
+// hearts for the fields you've said hello to it in (1, 5, 15). Back returns to the
 // screen you came from.
 
 import { go } from '../nav.mjs';
@@ -37,8 +37,10 @@ export function firstFieldOf(sp) {
 
 // The jar's floor in each painting, as fractions of the image: centre and
 // radii of the ellipse the friends keep to.
+// top / bottom: the knob's top and the plate's bottom, so the whole jar can be
+// kept on a wide, short screen.
 const JAR = {
-  land: { iw: 1920, ih: 1072, cx: 0.49, cy: 0.585, rx: 0.13, ry: 0.10 },
+  land: { iw: 1920, ih: 1072, cx: 0.49, cy: 0.585, rx: 0.13, ry: 0.10, top: 0.03, bottom: 0.80 },
   port: { iw: 1072, ih: 1920, cx: 0.50, cy: 0.585, rx: 0.22, ry: 0.075 },
 };
 // Where each met friend starts, in the ellipse's unit disc. Unmet friends
@@ -46,6 +48,7 @@ const JAR = {
 // "Not met yet" tag; the met ones wander the front, clear of them.
 const HOME = { ladybug: [-0.62, 0.15], butterfly: [0.2, -0.05], caterpillar: [0.62, 0.3], snail: [-0.15, 0.62] };
 const BACK_Y = -0.6;      // the silhouettes' row
+const UNMET_GROW = 1.25;  // silhouettes are drawn a little bigger than friends
 const FRONT_MIN_Y = -0.2; // met friends stay in front of it
 // px/s at a 64 px sprite.
 const SPEED = { ladybug: 16, butterfly: 34, caterpillar: 8, snail: 6 };
@@ -59,7 +62,7 @@ export function renderGarden(root) {
   const met = FRIENDS.filter((sp) => g[sp]);
   const title = el('div', 'bar-heading');
   title.append(el('h1', 'screen-title', 'Bug Garden'));
-  const count = el('p', 'screen-sub', met.length ? `${met.length} of ${FRIENDS.length} friends met` : 'Pet a friendly bug to meet it');
+  const count = el('p', 'screen-sub', met.length ? `${met.length} of ${FRIENDS.length} friends met` : 'Say hello to meet a friend');
   count.setAttribute('data-testid', 'garden-count');
   title.append(count);
   bar.append(back, title, el('div', 'bar-right'));
@@ -71,7 +74,7 @@ export function renderGarden(root) {
   const bugs = FRIENDS.map((sp) => {
     const isMet = !!g[sp];
     const k = unmetList.indexOf(sp);
-    const span = Math.min(0.62, 0.21 * (unmetList.length - 1));
+    const span = Math.min(0.72, 0.24 * (unmetList.length - 1));
     const home = isMet ? HOME[sp] : [unmetList.length > 1 ? -span + (2 * span * k) / (unmetList.length - 1) : 0, BACK_Y];
     const b = el('button', `garden-friend ${isMet ? 'met' : 'unmet'}`);
     b.type = 'button';
@@ -106,11 +109,21 @@ export function renderGarden(root) {
     const W = window.innerWidth, H = window.innerHeight;
     const J = W >= H ? JAR.land : JAR.port;
     const k = Math.max(W / J.iw, H / J.ih);
-    const ox = (W - J.iw * k) / 2, oy = (H - J.ih * k) / 2;
+    const ox = (W - J.iw * k) / 2;
+    let oy = (H - J.ih * k) / 2;
+    // The painting covers the screen. Centred, a wide short screen cuts the
+    // jar's knob: centre the jar instead (still covering), knob to plate.
+    if (J.top !== undefined && oy + J.top * J.ih * k < 4) {
+      const want = H / 2 - ((J.top + J.bottom) / 2) * J.ih * k;
+      oy = Math.min(0, Math.max(H - J.ih * k, want));
+    }
+    screen.style.backgroundSize = `${(J.iw * k).toFixed(1)}px ${(J.ih * k).toFixed(1)}px`;
+    screen.style.backgroundPosition = `${ox.toFixed(1)}px ${oy.toFixed(1)}px`;
     const size = Math.round(Math.max(40, Math.min(72, J.rx * J.iw * k * 0.36)));
     box = { cx: ox + J.cx * J.iw * k, cy: oy + J.cy * J.ih * k, rx: J.rx * J.iw * k, ry: J.ry * J.ih * k, size };
     screen.style.setProperty('--friend', `${size}px`);
-    tag.style.transform = `translate(-50%, 0) translate(${box.cx.toFixed(1)}px, ${(box.cy + BACK_Y * box.ry - size / 2 - 26).toFixed(1)}px)`;
+    const us = size * UNMET_GROW;
+    tag.style.transform = `translate(-50%, 0) translate(${box.cx.toFixed(1)}px, ${(box.cy + BACK_Y * box.ry - us / 2 - 26).toFixed(1)}px)`;
   };
   lay();
 
@@ -206,7 +219,8 @@ function step(f, dt, reduced, box) {
     const src = CRAWL_URLS[f.frame];
     if (!f.img.src.endsWith(src)) f.img.src = src;
   }
-  f.el.style.transform = `translate(${(x - box.size / 2).toFixed(1)}px, ${(y - box.size / 2 - lift).toFixed(1)}px)`;
+  const s = f.met ? box.size : box.size * UNMET_GROW;
+  f.el.style.transform = `translate(${(x - s / 2).toFixed(1)}px, ${(y - s / 2 - lift).toFixed(1)}px)`;
   f.img.style.transform = `rotate(${rot.toFixed(3)}rad) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`;
   f.el.style.zIndex = String(Math.round((f.met ? 3000 : 1000) + y));
 }
@@ -232,7 +246,7 @@ function showFriend(sp, entry) {
     card.append(hearts);
     const dl = el('dl', 'card-stats');
     dl.append(el('dt', '', 'First met'), el('dd', '', fmtDate(entry.firstMet)));
-    dl.append(el('dt', '', 'Petted on'), el('dd', '', fields === 1 ? '1 field' : `${fields} fields`));
+    dl.append(el('dt', '', 'Met on'), el('dd', '', fields === 1 ? '1 field' : `${fields} fields`));
     card.append(dl);
   } else {
     card.append(el('p', 'card-sub', 'Not met yet'));

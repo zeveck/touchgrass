@@ -23,7 +23,7 @@ import { vibrate } from './haptics.mjs';
 import { SPECIES, bugSizePx, warnLevel } from './sim/insects.mjs';
 import { unlockedMoves, MOVE_KEYS, MOVE_NAMES, ARM_TIMEOUT_S } from './sim/moves.mjs';
 import { BugRenderer, bugPortrait } from './render/bugs.mjs';
-import { drawPreview, previewLabel, MoveFx } from './render/moves.mjs';
+import { drawPreview, drawPills, previewLabel, MoveFx } from './render/moves.mjs';
 import { Toolbar } from './ui/toolbar.mjs';
 import { PressWait } from './input/tap.mjs';
 import { hintFor, hintsSeenList, checklistFor } from './hints.mjs';
@@ -214,8 +214,8 @@ export class Game {
       this.input.release();
       this.input.drain();
       const h = this.hint;
-      if (h && h.checklist) this.cards.showChecklist(h.items, h.name, () => this.dismissHint(), this.ptype);
-      else if (h) this.cards.showHint(h, () => this.dismissHint(), this.ptype);
+      if (h && h.checklist) this.cards.showChecklist(h.items, h.name, () => this.dismissHint(), this.ptype, this._hintPause);
+      else if (h) this.cards.showHint(h, () => this.dismissHint(), this.ptype, this._hintPause);
     } else if (next === 'paused') {
       this.input.release();
       this._hoverEnd();
@@ -309,6 +309,31 @@ export class Game {
     }, this.ptype);
   }
 
+  // Pause pressed (button, Esc or P) while a hint card is up: the hint was
+  // seen, and the pause card opens straight away.
+  pauseFromHint() {
+    const h = this.hint;
+    if (getState() !== 'hint') return;
+    if (h && !h.checklist) markHintSeen(h.id);
+    if (h && h.checklist && this.challenge) this.challenge.checked = true;
+    this.hint = null;
+    go('hint', 'btn-pause');
+  }
+
+  // Is a page point on the HUD's Pause button? (It sits under a hint card's
+  // backdrop, which catches the press.)
+  get _hintPause() {
+    return {
+      at: (x, y) => {
+        const b = this.hud.pauseBtn;
+        if (!b || !b.offsetParent) return false;
+        const r = b.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      },
+      go: () => this.pauseFromHint(),
+    };
+  }
+
   // The hint card was dismissed: saved as seen, and the field starts.
   dismissHint() {
     const h = this.hint;
@@ -359,7 +384,12 @@ export class Game {
       return;
     }
     if (s === 'hint') {
-      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+      // Esc or P on a hint card pauses (as on the field); Enter or Space
+      // dismiss it.
+      if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        this.pauseFromHint();
+      } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         if (this.cards.dismissHint) this.cards.dismissHint();
       }
@@ -541,6 +571,9 @@ export class Game {
   pressMove(k) {
     if (getState() !== 'playing' || !this.world || this.world.won) return;
     if (!unlockedMoves(this.n).includes(k)) return;
+    // Prices refresh every half second of game time; work them out now so the
+    // button the player just pressed (and whether it's usable) is current.
+    this._livePrices();
     if (this.armed === k) {
       this.disarm();
       audio.play('click', { rate: 0.85 });
@@ -560,6 +593,16 @@ export class Game {
     if (k !== 'clear') this.hud.showToast(MOVE_HOWTO[k], 2400);
     else this.hud.hideToast();
     this.hud.announce(`${MOVE_NAMES[k]} armed`);
+  }
+
+  // A mouse over the field (with a little margin round its edge): aiming an
+  // armed move, so it doesn't time out.
+  _aiming() {
+    const m = this.input.mouse, L = this.layout;
+    if (!m || !L) return false;
+    const pad = L.cell;
+    return m.x >= L.field.x - pad && m.x <= L.field.x + L.field.w + pad
+      && m.y >= L.field.y - pad && m.y <= L.field.y + L.field.h + pad;
   }
 
   // Cancel an armed move. Nothing was paid, so there's nothing to refund.
@@ -834,12 +877,16 @@ export class Game {
     this._applyInput();
     this._tickPress();
     if (this.hoverOn && performance.now() / 1000 - this.hoverMoveT > SWEEP_IDLE_S) this._hoverEnd();
-    if (this.armed && !this.input.down) {
-      // The 5 s auto-cancel is paused while the pointer is down.
+    if (this.armed && !this.input.down && !this._aiming()) {
+      // The 5 s auto-cancel is paused while the pointer is down, or while a
+      // mouse is over the field (aiming). It's never silent.
       this.armT += dt;
       if (this.armT >= ARM_TIMEOUT_S) {
+        const k = this.armed;
         this.disarm();
-        audio.play('click', { rate: 0.85 });
+        audio.lowClick();
+        this.hud.showToast(`${MOVE_NAMES[k]} put away`, 1600);
+        this.hud.announce(`${MOVE_NAMES[k]} put away`);
       }
     }
     this.simStep(dt);
@@ -1041,6 +1088,7 @@ export class Game {
       this.bloom.draw(ctx, dpr);
     }
     let over = null;
+    const pills = [];
     for (const f of this.fxList) over = union(over, f.draw(ctx, dpr, reduced));
     if (this.armed && playing) {
       const w = this.world;
@@ -1055,9 +1103,11 @@ export class Game {
         extra = { path, hw: 1.5 * w.brushCells(p.type) };
       }
       this.preview = { kind: this.armed, label: previewLabel(this.armed, price), lossFrac: price ? price.lossFrac : null };
-      over = union(over, drawPreview(ctx, w, L, dpr, tNow, this.armed, price, extra, reduced));
+      over = union(over, drawPreview(ctx, w, L, dpr, tNow, this.armed, price, extra, reduced, pills));
     }
     over = union(over, this.bugsR.draw(ctx, this.world, L, dpr, frameDt, { reduced, paused: !playing }));
+    // The aim's price sits above the bugs.
+    if (pills.length) drawPills(ctx, dpr, pills);
     if (playing) over = union(over, this._drawHand(ctx, dpr));
     this.lastOverlayBox = over;
     if (playing) {

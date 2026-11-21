@@ -19,7 +19,10 @@ function watchErrors(page) {
 async function press(page, testid, hold = 120) {
   const loc = page.getByTestId(testid).first();
   await expect(loc).toBeVisible();
-  const b = await loc.boundingBox();
+  // During a screen cross-fade the outgoing screen's copy of a button can be
+  // the one found and then removed: wait for one that stays on the page.
+  let b = null;
+  await expect.poll(async () => { b = await loc.boundingBox(); return !!b; }).toBe(true);
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
   await page.mouse.down();
   await page.waitForTimeout(hold);

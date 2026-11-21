@@ -189,3 +189,13 @@ Checked and graded by the lead (by "The bar"):
 | iPhone silent switch mutes Web Audio | Bug hunter | nice | not changed: respecting the ringer switch is the expected default for a calm game |
 
 No must-fix findings, so no second review round.
+
+## Polish pass (Polish reviewer), 2026-11-21
+
+No must-fix. Scan, first-load film and frame log clean. All findings sent to fix: How to play used
+field-specific hint text (should-fix) and dropped the Line/Full Clear icons (should-fix); How to play bare and
+8 pages at 844×390 (should-fix); mixed "N s" / "m:ss" times on the field-complete card (should-fix); one verb
+for petting (nice); aim label under bugs (nice); landscape pause/settings balance, name-prompt heading break,
+faint garden silhouettes and clipped jar knob in landscape, pale "TOTAL SCORE", top tufts cut by the window on
+desktop, no Copy button on the desktop share card (nice); Pause during a hint card only dismissed the hint;
+an armed Ring silently put away while aiming (likely the 5 s timeout).

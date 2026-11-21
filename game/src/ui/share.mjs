@@ -1,6 +1,6 @@
 // ui/share.mjs -- the Share button's flow (GAME_DESIGN.md "Screens", Share).
-// The first time, a small card asks "Your name, for challenge links
-// (optional)", up to 12 characters, saved. Then the 1200x630 scorecard is
+// The first time, a small card asks "Add your name?" (optional, for
+// challenge links), up to 12 characters, saved. Then the 1200x630 scorecard is
 // drawn and goes out by Web Share (with the picture, then text and link),
 // the clipboard, or a download card.
 
@@ -21,7 +21,7 @@ export function gameBase() {
 function askName() {
   return new Promise((resolve) => {
     const card = el('div', 'name-card');
-    card.append(el('h2', 'card-title', 'Your name, for challenge links'), el('p', 'card-sub', 'Optional. Friends see it when you challenge them.'));
+    card.append(el('h2', 'card-title', 'Add your name?'), el('p', 'card-sub', 'Optional. It goes on your challenge links, so friends know who sent them.'));
     const input = el('input', 'set-name');
     input.type = 'text';
     input.maxLength = NAME_MAX;
@@ -52,6 +52,21 @@ function askName() {
   });
 }
 
+// Copy the challenge link: the async clipboard, else the selection.
+function copyLink(input) {
+  const done = () => toast('Copied', 1600);
+  const fallback = () => {
+    input.focus();
+    input.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    if (ok) done(); else toast('Select the link to copy it', 2200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(done, fallback);
+  } else fallback();
+}
+
 function showDownload(card) {
   const box = el('div', 'download-card');
   // Two halves (side by side on a short screen): the picture, and the rest.
@@ -71,7 +86,11 @@ function showDownload(card) {
   link.setAttribute('aria-label', 'Challenge link');
   link.setAttribute('data-testid', 'share-link');
   link.addEventListener('focus', () => link.select());
-  side.append(link);
+  // The link and a Copy button (the clipboard is written from the click).
+  const linkRow = el('div', 'download-link-row');
+  const copy = button('Copy', 'btn-share-copy', () => copyLink(link));
+  linkRow.append(link, copy);
+  side.append(linkRow);
   const row = el('div', 'card-actions');
   if (url) {
     const a = el('a', 'btn primary', 'Save picture');

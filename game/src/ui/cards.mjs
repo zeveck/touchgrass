@@ -19,8 +19,8 @@ function button(label, testid, onClick, primary = false) {
 }
 
 import { bugPortrait } from '../render/bugs.mjs';
-import { fmtScore } from '../sim/score.mjs';
-import { hintFoot, forInput } from '../hints.mjs';
+import { fmtScore, fmtTime } from '../sim/score.mjs';
+import { hintFoot, forInput, howtoArt } from '../hints.mjs';
 
 // A hint card's picture, built from in-game art: grass tufts, bug sprites,
 // move icons, and the ghost hand over a little swatch of grass.
@@ -68,12 +68,6 @@ export function hintArt(art) {
     }
   }
   return wrap;
-}
-
-function fmtTime(s) {
-  const t = Math.round(s);
-  const m = Math.floor(t / 60);
-  return m > 0 ? `${m}:${String(t % 60).padStart(2, '0')}` : `${t} s`;
 }
 
 export class Cards {
@@ -126,15 +120,21 @@ export class Cards {
     if (pair.childNodes.length) row.append(pair);
     row.append(button('Title', 'btn-pause-title', onTitle));
     if (onReport) row.append(button('Report a bug', 'btn-pause-report', onReport));
+    // On a short screen the buttons under Resume sit two to a row: an odd one
+    // out at the end spans the row instead of sitting alone in a corner.
+    const rest = row.querySelectorAll('button:not(.primary)');
+    if (rest.length % 2) rest[rest.length - 1].classList.add('span-row');
     card.append(row);
     this._open('pause', card);
   }
 
   // A hint card: shown when a field opens, before the first stroke. Any
   // press on it (or its backdrop) dismisses it and is swallowed: it never
-  // reaches the field. Enter, Space or Esc dismiss it too. input: 'touch' or
-  // 'mouse', so the foot names the right action.
-  showHint(hint, onDismiss, input = 'touch') {
+  // reaches the field. Enter or Space dismiss it too. input: 'touch' or
+  // 'mouse', so the foot names the right action. pause: { at(x, y), go() }:
+  // a press on the HUD's Pause button (under the dimmed backdrop) opens the
+  // pause card instead of only dismissing the hint.
+  showHint(hint, onDismiss, input = 'touch', pause = null) {
     const card = el('div', 'card card-hint');
     card.append(hintArt(hint.art), el('h2', 'card-title', hint.title), el('p', 'card-sub hint-text', forInput(hint.text, input)));
     const row = el('div', 'card-actions');
@@ -148,6 +148,13 @@ export class Cards {
     const onDown = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (pause && pause.at(e.clientX, e.clientY)) {
+        if (done) return;
+        done = true;
+        this.layer.removeEventListener('pointerdown', onDown, true);
+        pause.go();
+        return;
+      }
       dismiss();
     };
     row.append(button('Got it', 'btn-hint-ok', dismiss, true));
@@ -168,11 +175,11 @@ export class Cards {
     ul.setAttribute('data-testid', 'howto-list');
     const items = list.map((h) => {
       const li = el('li', 'howto-item');
-      // Two pictures each (three when the middle one is an arrow: "this,
-      // then that").
-      li.append(hintArt(h.art.slice(0, h.art.some((a) => a.arrow) ? 3 : 2)));
+      li.setAttribute('data-hint', h.id);
+      li.append(hintArt(howtoArt(h.art)));
       const txt = el('div', 'howto-text');
-      txt.append(el('strong', '', h.title), el('span', '', forInput(h.text, input)));
+      // The general line, not the card's words about the field it opened on.
+      txt.append(el('strong', '', h.howtoTitle || h.title), el('span', '', forInput(h.howto || h.text, input)));
       li.append(txt);
       return li;
     });
@@ -191,7 +198,10 @@ export class Cards {
     let per = items.length, page = 0;
     const pages = () => Math.max(1, Math.ceil(items.length / per));
     const show = () => {
-      ul.replaceChildren(...items.slice(page * per, (page + 1) * per));
+      const shown = items.slice(page * per, (page + 1) * per);
+      ul.replaceChildren(...shown);
+      // A page of one (the last page, say) is one column, not half a card.
+      ul.classList.toggle('single', shown.length === 1);
       const many = pages() > 1;
       pager.hidden = !many;
       label.textContent = `${page + 1} of ${pages()}`;
@@ -205,17 +215,24 @@ export class Cards {
       const b = d > 0 ? (next.disabled ? prev : next) : (prev.disabled ? next : prev);
       b.focus({ preventScroll: true });
     };
-    // Fit: the most items per page with no scrolling.
+    // Fit: the most items per page with no page scrolling (every page is
+    // tried: a later page's entries can be longer than the first's).
     const fit = () => {
       const first = page * per;
+      const over = () => card.scrollHeight > card.clientHeight + 1 || ul.scrollHeight > ul.clientHeight + 1;
+      const allFit = () => {
+        for (page = 0; page < pages(); page++) {
+          show();
+          if (over()) return false;
+        }
+        return true;
+      };
+      // The first page narrows it quickly; then every page is checked.
       per = items.length;
       page = 0;
       show();
-      const over = () => card.scrollHeight > card.clientHeight + 1 || ul.scrollHeight > ul.clientHeight + 1;
-      while (per > 1 && over()) {
-        per--;
-        show();
-      }
+      while (per > 1 && over()) { per--; show(); }
+      while (per > 1 && !allFit()) per--;
       page = Math.min(pages() - 1, Math.floor(first / per));
       show();
     };
@@ -226,8 +243,8 @@ export class Cards {
     this._cleanup = () => window.removeEventListener('resize', onResize);
   }
 
-  // The field-complete card: score, best, time vs par, friends petted, the
-  // head start if earned; Next field, Map, Share. A challenge adds how you did
+  // The field-complete card: score, best, time vs par (m:ss), friends met,
+  // the head start if earned; Next field, Map, Share. A challenge adds how you did
   // against their score; a guest challenge has Try again, Map and Share.
   showComplete(o) {
     const { n, name, time, par, whole, headStartEarned, headStartUsed, last, petted = 0, friends = 0 } = o;
@@ -266,7 +283,7 @@ export class Cards {
     if (!o.guest) stat('Best', fmtScore(o.best), 'complete-best');
     stat('Time', `${fmtTime(time)} (par ${fmtTime(par)})`, 'complete-time');
     stat('Whole field', whole >= 1 ? 'Every blade touched' : `${Math.floor(whole * 100)}% touched`, 'complete-whole');
-    if (friends > 0) stat('Friends', petted >= friends ? (friends === 1 ? 'Petted' : `All ${friends} petted`) : `${petted} of ${friends} petted`, 'complete-friends');
+    if (friends > 0) stat('Friends', petted >= friends ? (friends === 1 ? 'Met' : friends === 2 ? 'Both met' : `All ${friends} met`) : `${petted} of ${friends} met`, 'complete-friends');
     if (headStartUsed) stat('Started with', 'Head start +15%');
     right.append(dl);
     if (headStartEarned && !o.guest) {
@@ -293,8 +310,9 @@ export class Cards {
   }
 
   // A guest challenge's checklist: everything new up to that field, before it
-  // plays. Dismissed like a hint card.
-  showChecklist(items, fieldName, onDismiss, input = 'touch') {
+  // plays. Dismissed with its button (or Enter / Space); Pause works as on a
+  // hint card.
+  showChecklist(items, fieldName, onDismiss, input = 'touch', pause = null) {
     const card = el('div', 'card card-checklist');
     card.append(el('p', 'card-kicker', 'Guest challenge'), el('h2', 'card-title', `Before ${fieldName}`));
     const ul = el('ul', 'checklist');
@@ -308,6 +326,17 @@ export class Cards {
     card.append(row);
     this._open('checklist', card);
     this.dismissHint = dismiss;
+    if (pause) {
+      const onDown = (e) => {
+        if (done || !pause.at(e.clientX, e.clientY)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        done = true;
+        pause.go();
+      };
+      this.layer.addEventListener('pointerdown', onDown, true);
+      this._cleanup = () => this.layer.removeEventListener('pointerdown', onDown, true);
+    }
   }
 
   showError({ onRestart }) {

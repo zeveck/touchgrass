@@ -139,13 +139,13 @@ field fills what's left, so they never cover it.
 | Action | Mouse / keyboard | Touch |
 |---|---|---|
 | Sweep grass | Hold the left button and drag over the field. Optional: **Sweep by hovering** in Settings (off by default) | Drag one finger over the field. The first finger wins and extra fingers are ignored (kept). |
-| Pet a friendly bug | Click it | Tap it |
+| Say hello to a friendly bug (pet it) | Click it | Tap it |
 | Arm a move | Click Ring / Line / Clear in the toolbar, or press **1 / 2 / 3** | Tap the toolbar button (64 px, cost shown under the icon) |
 | Use an armed Ring | Press on the field to show the ring, drag to aim, release to fire | Same |
 | Use an armed Line | Drag along the field. The corridor shows as you drag and fires on release | Same |
 | Use an armed Clear | Click the field | Tap the field |
-| Cancel an armed move | Click the armed button again, press **Esc**, or wait 5 s | Tap the armed button again, or wait 5 s |
-| Pause | **Esc** (when no move is armed) or **P**, or the pause button | Pause button (48 px) |
+| Cancel an armed move | Click the armed button again, press **Esc**, or wait 5 s away from the field | Tap the armed button again, or wait 5 s |
+| Pause | **Esc** (when no move is armed) or **P**, or the pause button, also while a hint card is up | Pause button (48 px), also while a hint card is up |
 | Mute / unmute | **M**, or the speaker button | Speaker button beside pause |
 | Menus | Click; **Tab / Enter / Space** move between and press focused buttons | Tap |
 
@@ -165,7 +165,9 @@ field fills what's left, so they never cover it.
 - **Armed moves and the field's edge.** A Line whose drag touched the field fires along the part inside the
   field, even if the release lands outside it (thumbs overshoot edges). A drag that never touches the field
   fires nothing. The Ring's aim is clamped to the field's shape. The 5 s auto-cancel is paused while the
-  pointer is down.
+  pointer is down, and while a mouse is over the field (aiming: **(changed)** at the polish review a Ring
+  armed with key 1 timed out while the player hovered to aim, and the press swept instead). When it does
+  time out it says so: a low click and a small "Ring put away" toast, never silently.
 - **Robust pointers.** The field canvas uses `setPointerCapture`. These are all treated exactly like a
   release, except that an armed Ring or Line is **cancelled** (nothing paid) instead of fired:
   `pointercancel`, `lostpointercapture`, window `blur`. The stroke ends, an angry bug calms down, and the
@@ -297,7 +299,9 @@ biters to steer around.
 - **Bites** take **3% of the field's line** (never below 0). **(changed)** The plan's flat 15 meant nothing on
   late fields and a lot on early ones.
 - **Petting** gives **2% of the line** and 25 score, **once per bug per field**. More taps still make it hop,
-  float hearts and chirp. **(changed)** Reason: tap spamming earned unlimited energy.
+  float hearts and chirp. **(changed)** Reason: tap spamming earned unlimited energy. On screen it's always
+  **"say hello"** and **"met"** (hints, Bug Garden, friend card, field-complete card: "Friends: all 5 met"),
+  never "pet"; "pet" is only the code's and this document's word (polish review).
 - **Score** (**changed**: "energy at win × 2" is always about the same as the line, so it's replaced):
   `field × 100 + whole-field 250 + 2 per second under par (up to 100) + 25 per bug petted`. Speed is only a
   small part of it, because this is a calm game. A head start saves a few seconds, so it's worth at most about
@@ -425,14 +429,14 @@ speeds are now in CSS pixels, so bugs look and move the same on every screen. **
   - An ARIA live region announces 25/50/75/100%, "Whole field touched" and "Field N complete" (kept).
 - **Pause:** the field dims under a card with Resume, Restart field, How to play, Settings, Map and Title.
 - **Field complete:** the field blooms (see Juice). Then a card slides up: field name, score, best, time vs
-  par, friends petted, and the head start if earned. Buttons: **Next field**, Map, Share.
+  par (both m:ss, "0:43 (par 0:30)"), friends met, and the head start if earned. Buttons: **Next field**, Map, Share.
 - **Ending:** after field 15 the light fades to dusk, fireflies rise, and every friend you've met wanders onto
   the field. A short line: "You touched all the grass. Go touch some real grass." Then the total score, Share,
   and back to the map.
 - **Bug Garden:** a painted garden plot under a bell jar. Friends you've met wander and idle there. Unmet ones
   are soft silhouettes marked "Not met yet". Tap a friend for its card: name, a one-line note ("Ladybug: counts
-  its spots when it's nervous."), first met date, and friendship hearts for the number of fields you've petted
-  it in (1, 5, 15). Close returns to the screen you came from.
+  its spots when it's nervous."), first met date, and friendship hearts for the number of fields you've said
+  hello to it in (1, 5, 15; "Met on N fields"). Close returns to the screen you came from.
 - **Settings:** music volume, sound volume, haptics (on phones that support it), reduced motion (Auto / Off /
   On), sweep by hovering (desktop, off by default), your name for challenges, credits ("Made by Rich Conlan,
   finished with gamegen", plus the tools used), and clear data (with an in-game confirm). Back returns to the

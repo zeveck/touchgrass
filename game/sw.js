@@ -97,6 +97,7 @@ const LOCAL_FILES = [
   'icon-maskable-512.png',
   'index.html',
   'manifest.webmanifest',
+  'social-card.jpg',
   'src/assets.mjs',
   'src/audio.mjs',
   'src/game.mjs',

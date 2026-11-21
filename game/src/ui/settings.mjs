@@ -109,7 +109,7 @@ export function renderSettings(root, app) {
 
   const play = el('section', 'set-group set-play');
   if (hapticsSupported()) {
-    play.append(row('Haptics', toggle('set-haptics', st.haptics, (v) => setSetting('haptics', v), 'Haptics'), { note: 'A little buzz on strokes, pets and nips' }));
+    play.append(row('Haptics', toggle('set-haptics', st.haptics, (v) => setSetting('haptics', v), 'Haptics'), { note: 'A little buzz on strokes, hellos and nips' }));
   }
   play.append(row('Reduced motion', segmented('set-motion', [['auto', 'Auto'], ['off', 'Off'], ['on', 'On']], st.motion, (v) => setSetting('motion', v)),
     { note: 'Auto follows your device' }));

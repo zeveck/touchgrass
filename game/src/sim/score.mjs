@@ -27,3 +27,9 @@ export function scoreOf(args) {
 export function fmtScore(v) {
   return String(Math.max(0, Math.round(v))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+
+// 43 -> "0:43", 75.4 -> "1:15": every time in the game reads m:ss.
+export function fmtTime(seconds) {
+  const t = Math.max(0, Math.round(seconds));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+}

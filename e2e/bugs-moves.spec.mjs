@@ -68,7 +68,7 @@ test('hint: the card shows when the field opens, a press dismisses it without sw
   await page.keyboard.press('p');
   await expect(page.getByTestId('card-pause')).toBeVisible();
   await pressButton(page, 'btn-howto');
-  await expect(page.getByTestId('howto-list')).toContainText('A grumpy ant, and the Ring');
+  await expect(page.getByTestId('howto-list')).toContainText('Grumpy bugs, and the Ring');
   await pressButton(page, 'btn-howto-back');
   await expect(page.getByTestId('card-pause')).toBeVisible();
   // Seen once: not again on a reload.

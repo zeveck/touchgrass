@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Touch Grass card</title>
+<style>
+@font-face { font-family: "Fraunces"; src: url("../game/fonts/fraunces-600-latin.woff2") format("woff2"); font-weight: 600; }
+@font-face { font-family: "Nunito"; src: url("../game/fonts/nunito-latin.woff2") format("woff2"); font-weight: 400 800; }
+html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+.card { position: relative; width: 1200px; height: 630px; background: url("../game/assets/scenes/title-16x9.jpg") center 35% / cover; }
+.safe { position: absolute; left: 50%; top: 50%; width: 1040px; height: 560px; transform: translate(-50%, -50%); }
+h1 { position: absolute; top: 4%; left: 0; right: 0; margin: 0; text-align: center; font: 600 150px/1 "Fraunces", serif; color: #2b2a26; letter-spacing: -2px; text-shadow: 0 3px 0 rgba(251,243,223,.8), 0 0 30px rgba(251,243,223,.9); }
+p { position: absolute; top: 37%; left: 0; right: 0; margin: 0; text-align: center; font: 700 34px/1 "Nunito", sans-serif; color: #2f6b34; text-shadow: 0 0 16px rgba(251,243,223,1), 0 0 4px rgba(251,243,223,1); }
+.grass { position: absolute; left: -80px; right: -80px; bottom: -6px; height: 230px; display: flex; align-items: flex-end; justify-content: center; }
+.grass img { width: 92px; height: 92px; margin: 0 -22px; }
+.grass img.gold { filter: sepia(1) saturate(2.2) hue-rotate(-12deg) brightness(1.12); height: 58px; width: 92px; object-fit: contain; object-position: bottom; }
+.bug { position: absolute; filter: drop-shadow(0 6px 6px rgba(43,42,38,.35)); }
+</style></head>
+<body><div class="card">
+  <div class="safe">
+    <h1>Touch Grass</h1>
+    <p>Run your hand through the meadow</p>
+  </div>
+  <div class="grass" id="g"></div>
+  <img class="bug" src="../game/assets/sprites/ladybug.png" style="width:118px; left:calc(50% - 250px); bottom:118px; transform:rotate(-18deg)">
+  <img class="bug" src="../game/assets/sprites/butterfly-full.png" style="width:128px; left:calc(50% + 150px); bottom:190px; transform:rotate(14deg)">
+  <img class="bug" src="../game/assets/sprites/snail.png" style="width:96px; left:calc(50% - 40px); bottom:96px">
+</div>
+<script>
+const g = document.getElementById('g');
+const kinds = ['default','tall','flowered','default','short','tall','default','flowered','stiff','default','tall','short','flowered','default','tall','default','flowered','short','default','tall','default','flowered','tall','short','default','flowered','tall'];
+kinds.forEach((k, i) => {
+  const im = document.createElement('img');
+  const gold = (i >= 9 && i <= 16);
+  im.src = '../game/assets/tufts/' + (gold ? 'flat' : k) + '.png';
+  if (gold) im.className = 'gold';
+  else im.style.height = im.style.width = (k === 'tall' ? 132 : k === 'short' ? 82 : 108) + 'px';
+  g.appendChild(im);
+});
+</script>
+</body></html>

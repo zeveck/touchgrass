@@ -15,6 +15,7 @@ export const TOOLBAR_COL_PX = 100;     // landscape: right column width
 export const HUD_COL_SMALL_PX = 150;   // landscape phones (short viewports): at least...
 export const HUD_COL_SMALL_MAX_PX = 210; // ...and up to this, from width the field can't use
 export const TOOLBAR_COL_SMALL_PX = 84;
+export const TOP_PAD_SHARE = 1.6;      // landscape: of the 2 x pad round the field, this much goes on top
 
 // bounds: the shape's real extent in cells ({ x0, y0, x1, y1 }, from
 // shapeBounds() in levels.mjs). The cells are sized and centred on it, so a
@@ -43,7 +44,11 @@ export function computeLayout(vw, vh, fieldW, fieldH, insets = {}, bounds = null
       : HUD_COL_PX;
     hud = { x: left, y: top, w: hc, h: vh - top - bottom };
     toolbar = { x: vw - right - tc, y: top, w: tc, h: vh - top - bottom };
-    area = { x: hud.x + hud.w + pad, y: top + pad, w: toolbar.x - pad - (hud.x + hud.w + pad),
+    // The top row's tufts spill up out of the field (tall grass by about a
+    // cell) and nothing spills down: more of the padding goes above the field
+    // than below, so the tufts aren't cut by the window's top. The area's
+    // height (and so the cell size) is the same.
+    area = { x: hud.x + hud.w + pad, y: top + pad * TOP_PAD_SHARE, w: toolbar.x - pad - (hud.x + hud.w + pad),
       h: vh - top - bottom - 2 * pad };
   }
   area.w = Math.max(1, area.w); area.h = Math.max(1, area.h);

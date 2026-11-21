@@ -13,6 +13,8 @@
 //   field with no button held queues 'hover' samples, and 'hoverend' when it
 //   leaves. The game turns those into a stroke.
 // - While the bug report form is open, presses are ignored.
+// - `mouse` is where a mouse last was over the element (null once it leaves),
+//   button held or not: an armed move doesn't time out while it's aiming.
 //
 // queue entries: { kind: 'down' | 'move' | 'up' | 'hover' | 'hoverend', x, y,
 // t (s), type, cancel? }; x, y are CSS px relative to the element's top-left.
@@ -27,6 +29,7 @@ export class PointerInput {
     this.queue = [];
     this.enabled = true;
     this.hover = false;
+    this.mouse = null;
     this.stats = { down: 0, up: 0, cancel: 0, lost: 0, blur: 0, ignored: 0 };
     this._onDown = this._onDown.bind(this);
     this._onMove = this._onMove.bind(this);
@@ -36,6 +39,7 @@ export class PointerInput {
     this._onBlur = this._onBlur.bind(this);
     this._onContext = (e) => e.preventDefault();
     this._onLeave = (e) => {
+      if (e.pointerType === 'mouse') this.mouse = null;
       if (e.pointerType === 'mouse' && this.activeId === null) this.queue.push({ kind: 'hoverend', x: 0, y: 0, t: e.timeStamp / 1000, type: 'mouse' });
     };
   }
@@ -83,6 +87,7 @@ export class PointerInput {
   }
 
   _onMove(e) {
+    if (e.pointerType === 'mouse') this.mouse = this._pos(e);
     if (e.pointerId !== this.activeId) {
       if (this.hover && this.enabled && this.activeId === null && e.pointerType === 'mouse' && e.buttons === 0 && !reportOpen()) {
         const p = this._pos(e);

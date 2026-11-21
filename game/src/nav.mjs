@@ -58,6 +58,7 @@ export const NAV = Object.freeze({
   },
   hint: {
     'btn-hint-ok': T('playing'),
+    'btn-pause': T('paused'),               // the HUD's Pause, under the card
     'btn-checklist-ok': T('playing'),
   },
   'level-won': {
