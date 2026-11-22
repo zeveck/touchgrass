@@ -5,7 +5,8 @@
   },
   "permissions": {
     "allow": [
-      "Bash(playwright-cli:*)"
+      "Bash(playwright-cli:*)",
+      "Bash(git push:*)"
     ]
   },
   "hooks": {

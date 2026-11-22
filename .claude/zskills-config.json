@@ -3,8 +3,8 @@
   "project_name": "touchgrass",
   "timezone": "America/New_York",
   "execution": {
-    "landing": "pr",
-    "main_protected": true,
+    "landing": "direct",
+    "main_protected": false,
     "branch_prefix": "feat/"
   },
   "testing": {

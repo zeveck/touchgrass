@@ -20,7 +20,7 @@
 #   direct                 -> BLOCK_MAIN_PUSH=0
 # Default here is 1 so zskills-shipped configs fail closed (safer).
 # Installer flips this single line via Edit; do not inline-expand further below.
-BLOCK_MAIN_PUSH=1
+BLOCK_MAIN_PUSH=0
 
 INPUT=$(cat)
 
